@@ -6,7 +6,8 @@
 
 #include "Memory.hpp"
 
-class Cpu {
+class Cpu
+{
 public:
     Cpu(const Cpu &) = delete;
 
@@ -14,15 +15,20 @@ public:
 
     static Cpu &instance();
 
-    struct Registers {
+    struct Registers
+    {
         uint8_t a;
         uint8_t x, y;
         uint16_t pc;
-        uint8_t sp;
+
+        // sp is initialized to 0xFD on console startup
+        uint8_t sp = 0xFD;
+
         uint8_t p;
     } registers{};
 
-    enum class AddressingMode {
+    enum class AddressingMode
+    {
         Immediate,
         ZeroPage,
         ZeroPageX,
@@ -35,7 +41,8 @@ public:
         IndirectIndexed
     };
 
-    struct Instruction {
+    struct Instruction
+    {
         std::string mnemonic;
         AddressingMode mode;
         uint8_t bytes;
@@ -129,6 +136,8 @@ private:
 
     void JMP(uint16_t address);
 
+    void JSR(uint16_t address);
+
     void LDA(uint8_t value);
 
     void LDX(uint8_t value);
@@ -145,6 +154,14 @@ private:
 
     void ORA(uint8_t value);
 
+    void PHA();
+
+    void PHP();
+
+    void PLA();
+
+    void PLP();
+
     void ROL_Accumulator();
 
     void ROL_Memory(uint16_t address);
@@ -156,6 +173,10 @@ private:
     void ROL(uint8_t &value);
 
     void ROR(uint8_t &value);
+
+    void RTI();
+
+    void RTS();
 
     void SBC(uint8_t value);
 
