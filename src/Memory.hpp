@@ -7,8 +7,7 @@
 /**
  * Work in progress
  */
-class Memory
-{
+class Memory {
 public:
     Memory(const Memory &) = delete;
 

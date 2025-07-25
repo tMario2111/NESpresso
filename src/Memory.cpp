@@ -1,7 +1,6 @@
 #include "Memory.hpp"
 
-Memory &Memory::instance()
-{
+Memory &Memory::instance() {
     static Memory memory;
     return memory;
 }
