@@ -4,18 +4,17 @@
 #include <cstdint>
 #include <string>
 
-class Cpu {
+class Cpu
+{
 public:
     Cpu(const Cpu &) = delete;
 
     Cpu &operator=(const Cpu &) = delete;
 
-    static Cpu &instance() {
-        static Cpu cpu;
-        return cpu;
-    }
+    static Cpu &instance();
 
-    struct Registers {
+    struct Registers
+    {
         uint8_t a;
         uint8_t x, y;
         uint16_t pc;
@@ -23,8 +22,8 @@ public:
         uint8_t p;
     } registers{};
 
-
-    enum class AddressingMode {
+    enum class AddressingMode
+    {
         Immediate,
         ZeroPage,
         ZeroPageX,
@@ -37,7 +36,8 @@ public:
         IndirectIndexed
     };
 
-    struct Instruction {
+    struct Instruction
+    {
         std::string mnemonic;
         AddressingMode mode;
         uint8_t bytes;

@@ -1,5 +1,11 @@
 #include "Cpu.hpp"
 
+Cpu &Cpu::instance()
+{
+    static Cpu cpu;
+    return cpu;
+}
+
 void Cpu::initInstructionTable()
 {
     instruction_table[0x00] = {"BRK", AddressingMode::Immediate, 1, 7};
