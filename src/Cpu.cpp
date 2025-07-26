@@ -148,7 +148,7 @@ uint8_t Cpu::executeInstruction() {
         case AddressingMode::Relative: {
             // NOU: Pentru instrucțiuni de salt (branch)
             // Offsetul este semnat, citit de la PC + 1
-            auto offset = static_cast<uint8_t>(readMemory(registers.pc + 1));
+            auto offset = static_cast<int8_t>(readMemory(registers.pc + 1));
 
             // Funcția de salt (ex: BPL, BEQ) va gestiona actualizarea PC-ului
             // și calculul ciclurilor suplimentare (salt luat, traversare pagină)
@@ -705,27 +705,30 @@ void Cpu::ASL_Memory(uint16_t address) {
 
 // Branch if Carry Clear (BCC) - branches if the Carry Flag is clear
 void Cpu::BCC(uint8_t value) {
+    int8_t offset = static_cast<int8_t>(value); // Convert to signed 8-bit integer
     // Branch if Carry Clear
     if (!(registers.p & 0x01)) {
         // Check Carry Flag
-        registers.pc += value; // Adjust Program Counter
+        registers.pc += offset; // Adjust Program Counter
     }
 }
 
 // Branch if Carry Set (BCS) - branches if the Carry Flag is set
 void Cpu::BCS(uint8_t value) {
+    int8_t offset = static_cast<int8_t>(value); // Convert to signed 8-bit integer
     // Branch if Carry Set
     if (registers.p & 0x01) {
         // Check Carry Flag
-        registers.pc += value; // Adjust Program Counter
+        registers.pc += offset; // Adjust Program Counter
     }
 }
 
 void Cpu::BEQ(uint8_t value) {
+    int8_t offset = static_cast<int8_t>(value); // Convert to signed 8-bit integer
     // Branch if Equal (Zero Flag is set)
     if (registers.p & 0x02) {
         // Check Zero Flag
-        registers.pc += value; // Adjust Program Counter
+        registers.pc += offset; // Adjust Program Counter
     }
 }
 
@@ -737,26 +740,29 @@ void Cpu::BIT(uint8_t value) {
 }
 
 void Cpu::BMI(uint8_t value) {
+    int8_t offset = static_cast<int8_t>(value); // Convert to signed 8-bit integer
     // Branch if Minus (Negative Flag is set)
     if (registers.p & 0x80) {
         // Check Negative Flag
-        registers.pc += value; // Adjust Program Counter
+        registers.pc += offset; // Adjust Program Counter
     }
 }
 
 void Cpu::BNE(uint8_t value) {
+    int8_t offset = static_cast<int8_t>(value); // Convert to signed 8-bit integer
     // Branch if Not Equal (Zero Flag is clear)
     if (!(registers.p & 0x02)) {
         // Check Zero Flag
-        registers.pc += value; // Adjust Program Counter
+        registers.pc += offset; // Adjust Program Counter
     }
 }
 
 void Cpu::BPL(uint8_t value) {
+    int8_t offset = static_cast<int8_t>(value); // Convert to signed 8-bit integer
     // Branch if Positive (Negative Flag is clear)
     if (!(registers.p & 0x80)) {
         // Check Negative Flag
-        registers.pc += value; // Adjust Program Counter
+        registers.pc += offset; // Adjust Program Counter
     }
 }
 
@@ -780,18 +786,20 @@ void Cpu::BRK() {
 }
 
 void Cpu::BVC(uint8_t value) {
+    int8_t offset = static_cast<int8_t>(value); // Convert to signed 8-bit integer
     // Branch if Overflow Clear (Overflow Flag is clear)
     if (!(registers.p & 0x40)) {
         // Check Overflow Flag
-        registers.pc += value; // Adjust Program Counter
+        registers.pc += offset; // Adjust Program Counter
     }
 }
 
 void Cpu::BVS(uint8_t value) {
+    int8_t offset = static_cast<int8_t>(value); // Convert to signed 8-bit integer
     // Branch if Overflow Set (Overflow Flag is set)
     if (registers.p & 0x40) {
         // Check Overflow Flag
-        registers.pc += value; // Adjust Program Counter
+        registers.pc += offset; // Adjust Program Counter
     }
 }
 
@@ -1084,7 +1092,8 @@ void Cpu::RTS() {
 void Cpu::SBC(uint8_t value) {
     // Subtract with Carry - subtracts value and Carry Flag from the accumulator
     uint8_t a = registers.a;
-    uint8_t carry = ~(registers.p & 0x01); // C = bit 0
+    // uint8_t carry = ~(registers.p & 0x01); // C = bit 0
+    uint8_t carry = (registers.p & 0x01) ? 0 : 1;
 
     uint16_t result = a - value - carry;
 
