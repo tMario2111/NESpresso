@@ -9,14 +9,14 @@ Cpu &Cpu::instance() {
 uint8_t Cpu::executeInstruction() {
     uint16_t initial_pc = registers.pc;
     uint8_t opcode = readMemory(registers.pc);
-    Instruction& instruction = instruction_table[opcode];
+    Instruction &instruction = instruction_table[opcode];
     bool page_crossed = false;
 
     // Determină valoarea sau adresa în funcție de modul de adresare
     switch (instruction.mode) {
         case AddressingMode::Immediate: {
             uint8_t value = readMemory(registers.pc + 1);
-            std::visit([&](auto&& func) {
+            std::visit([&](auto &&func) {
                 if constexpr (std::is_invocable_v<decltype(func), uint8_t>) {
                     func(value);
                 }
@@ -26,7 +26,7 @@ uint8_t Cpu::executeInstruction() {
         case AddressingMode::ZeroPage: {
             uint8_t addr_low = readMemory(registers.pc + 1);
             uint16_t address = addr_low;
-            std::visit([&](auto&& func) {
+            std::visit([&](auto &&func) {
                 if constexpr (std::is_invocable_v<decltype(func), uint8_t>) {
                     func(readMemory(address));
                 } else if constexpr (std::is_invocable_v<decltype(func), uint16_t>) {
@@ -38,7 +38,7 @@ uint8_t Cpu::executeInstruction() {
         case AddressingMode::ZeroPageX: {
             uint8_t addr_low = readMemory(registers.pc + 1);
             uint16_t address = (addr_low + registers.x) & 0xFF;
-            std::visit([&](auto&& func) {
+            std::visit([&](auto &&func) {
                 if constexpr (std::is_invocable_v<decltype(func), uint8_t>) {
                     func(readMemory(address));
                 } else if constexpr (std::is_invocable_v<decltype(func), uint16_t>) {
@@ -50,16 +50,18 @@ uint8_t Cpu::executeInstruction() {
         case AddressingMode::ZeroPageY: {
             uint8_t addr_low = readMemory(registers.pc + 1);
             uint16_t address = (addr_low + registers.y) & 0xFF;
-            std::visit([&](auto&& func) {
-                if constexpr (std::is_invocable_v<decltype(func), uint16_t>) {
-                    func(address);
+            std::visit([&](auto &&func) {
+                if constexpr (std::is_invocable_v<decltype(func), uint8_t>) {
+                    func(readMemory(address)); // Adăugat: pentru instrucțiuni ca LDX care citesc valoarea
+                } else if constexpr (std::is_invocable_v<decltype(func), uint16_t>) {
+                    func(address); // Rămâne: pentru instrucțiuni ca STY care scriu la adresă
                 }
             }, instruction.execute);
             break;
         }
         case AddressingMode::Absolute: {
             uint16_t address = readMemory(registers.pc + 1) | (readMemory(registers.pc + 2) << 8);
-            std::visit([&](auto&& func) {
+            std::visit([&](auto &&func) {
                 if constexpr (std::is_invocable_v<decltype(func), uint8_t>) {
                     func(readMemory(address));
                 } else if constexpr (std::is_invocable_v<decltype(func), uint16_t>) {
@@ -72,7 +74,7 @@ uint8_t Cpu::executeInstruction() {
             uint16_t base_address = readMemory(registers.pc + 1) | (readMemory(registers.pc + 2) << 8);
             uint16_t effective_address = base_address + registers.x;
             page_crossed = (base_address & 0xFF00) != (effective_address & 0xFF00);
-            std::visit([&](auto&& func) {
+            std::visit([&](auto &&func) {
                 if constexpr (std::is_invocable_v<decltype(func), uint8_t>) {
                     func(readMemory(effective_address));
                 } else if constexpr (std::is_invocable_v<decltype(func), uint16_t>) {
@@ -85,7 +87,7 @@ uint8_t Cpu::executeInstruction() {
             uint16_t base_address = readMemory(registers.pc + 1) | (readMemory(registers.pc + 2) << 8);
             uint16_t effective_address = base_address + registers.y;
             page_crossed = (base_address & 0xFF00) != (effective_address & 0xFF00);
-            std::visit([&](auto&& func) {
+            std::visit([&](auto &&func) {
                 if constexpr (std::is_invocable_v<decltype(func), uint8_t>) {
                     func(readMemory(effective_address));
                 } else if constexpr (std::is_invocable_v<decltype(func), uint16_t>) {
@@ -96,8 +98,9 @@ uint8_t Cpu::executeInstruction() {
         }
         case AddressingMode::Indirect: {
             uint16_t ptr_address = readMemory(registers.pc + 1) | (readMemory(registers.pc + 2) << 8);
-            uint16_t address = readMemory(ptr_address) | (readMemory((ptr_address & 0xFF00) | ((ptr_address + 1) & 0xFF)) << 8);
-            std::visit([&](auto&& func) {
+            uint16_t address = readMemory(ptr_address) | (
+                                   readMemory((ptr_address & 0xFF00) | ((ptr_address + 1) & 0xFF)) << 8);
+            std::visit([&](auto &&func) {
                 if constexpr (std::is_invocable_v<decltype(func), uint16_t>) {
                     func(address);
                 }
@@ -108,7 +111,7 @@ uint8_t Cpu::executeInstruction() {
             uint8_t base_addr = readMemory(registers.pc + 1);
             uint8_t effective_base = base_addr + registers.x;
             uint16_t address = readMemory(effective_base) | (readMemory((effective_base + 1) & 0xFF) << 8);
-            std::visit([&](auto&& func) {
+            std::visit([&](auto &&func) {
                 if constexpr (std::is_invocable_v<decltype(func), uint8_t>) {
                     func(readMemory(address));
                 } else if constexpr (std::is_invocable_v<decltype(func), uint16_t>) {
@@ -122,13 +125,41 @@ uint8_t Cpu::executeInstruction() {
             uint16_t base_address = readMemory(base_addr) | (readMemory((base_addr + 1) & 0xFF) << 8);
             uint16_t effective_address = base_address + registers.y;
             page_crossed = (base_address & 0xFF00) != (effective_address & 0xFF00);
-            std::visit([&](auto&& func) {
+            std::visit([&](auto &&func) {
                 if constexpr (std::is_invocable_v<decltype(func), uint8_t>) {
                     func(readMemory(effective_address));
                 } else if constexpr (std::is_invocable_v<decltype(func), uint16_t>) {
                     func(effective_address);
                 }
             }, instruction.execute);
+            break;
+        }
+        case AddressingMode::Implied: {
+            // NOU: Pentru instrucțiuni fără operanzi
+            // Nu se citește nimic din memorie, operandul este implicit (ex: acumulatorul)
+            std::visit([&](auto &&func) {
+                if constexpr (std::is_invocable_v<decltype(func)>) {
+                    // Așteaptă funcții fără argumente
+                    func();
+                }
+            }, instruction.execute);
+            break;
+        }
+        case AddressingMode::Relative: {
+            // NOU: Pentru instrucțiuni de salt (branch)
+            // Offsetul este semnat, citit de la PC + 1
+            auto offset = static_cast<uint8_t>(readMemory(registers.pc + 1));
+
+            // Funcția de salt (ex: BPL, BEQ) va gestiona actualizarea PC-ului
+            // și calculul ciclurilor suplimentare (salt luat, traversare pagină)
+            std::visit([&](auto &&func) {
+                if constexpr (std::is_invocable_v<decltype(func), int8_t>) {
+                    func(offset);
+                }
+            }, instruction.execute);
+            // Ciclurile de bază (2) sunt deja în instruction.cycles.
+            // Funcția de salt trebuie să adauge ciclurile suplimentare la un contor global de cicluri.
+            // Variabila page_crossed_by_addressing nu se aplică aici.
             break;
         }
     }
@@ -143,7 +174,7 @@ uint8_t Cpu::executeInstruction() {
 }
 
 void Cpu::initInstructionTable() {
-    instruction_table[0x00] = {std::function<void()>([this]() { BRK(); }), AddressingMode::Immediate, 1, 7};
+    instruction_table[0x00] = {std::function<void()>([this]() { BRK(); }), AddressingMode::Implied, 2, 7};
     instruction_table[0x01] = {
         std::function<void(uint8_t)>([this](uint8_t value) { ORA(value); }), AddressingMode::IndexedIndirect, 2, 6
     };
@@ -153,11 +184,11 @@ void Cpu::initInstructionTable() {
     instruction_table[0x06] = {
         std::function<void(uint16_t)>([this](uint16_t address) { ASL_Memory(address); }), AddressingMode::ZeroPage, 2, 5
     };
-    instruction_table[0x08] = {std::function<void()>([this]() { PHP(); }), AddressingMode::Immediate, 1, 3};
+    instruction_table[0x08] = {std::function<void()>([this]() { PHP(); }), AddressingMode::Implied, 1, 3};
     instruction_table[0x09] = {
         std::function<void(uint8_t)>([this](uint8_t value) { ORA(value); }), AddressingMode::Immediate, 2, 2
     };
-    instruction_table[0x0A] = {std::function<void()>([this]() { ASL_Accumulator(); }), AddressingMode::Immediate, 1, 2};
+    instruction_table[0x0A] = {std::function<void()>([this]() { ASL_Accumulator(); }), AddressingMode::Implied, 1, 2};
     instruction_table[0x0D] = {
         std::function<void(uint8_t)>([this](uint8_t value) { ORA(value); }), AddressingMode::Absolute, 3, 4
     };
@@ -166,7 +197,7 @@ void Cpu::initInstructionTable() {
     };
 
     instruction_table[0x10] = {
-        std::function<void(uint8_t)>([this](uint8_t value) { BPL(value); }), AddressingMode::Immediate, 2, 2
+        std::function<void(uint8_t)>([this](uint8_t value) { BPL(value); }), AddressingMode::Relative, 2, 2
     };
     instruction_table[0x11] = {
         std::function<void(uint8_t)>([this](uint8_t value) { ORA(value); }), AddressingMode::IndirectIndexed, 2, 5, true
@@ -178,7 +209,7 @@ void Cpu::initInstructionTable() {
         std::function<void(uint16_t)>([this](uint16_t address) { ASL_Memory(address); }), AddressingMode::ZeroPageX, 2,
         6
     };
-    instruction_table[0x18] = {std::function<void()>([this]() { CLC(); }), AddressingMode::Immediate, 1, 2};
+    instruction_table[0x18] = {std::function<void()>([this]() { CLC(); }), AddressingMode::Implied, 1, 2};
     instruction_table[0x19] = {
         std::function<void(uint8_t)>([this](uint8_t value) { ORA(value); }), AddressingMode::AbsoluteY, 3, 4, true
     };
@@ -205,11 +236,11 @@ void Cpu::initInstructionTable() {
     instruction_table[0x26] = {
         std::function<void(uint16_t)>([this](uint16_t address) { ROL_Memory(address); }), AddressingMode::ZeroPage, 2, 5
     };
-    instruction_table[0x28] = {std::function<void()>([this]() { PLP(); }), AddressingMode::Immediate, 1, 4};
+    instruction_table[0x28] = {std::function<void()>([this]() { PLP(); }), AddressingMode::Implied, 1, 4};
     instruction_table[0x29] = {
         std::function<void(uint8_t)>([this](uint8_t value) { AND(value); }), AddressingMode::Immediate, 2, 2
     };
-    instruction_table[0x2A] = {std::function<void()>([this]() { ROL_Accumulator(); }), AddressingMode::Immediate, 1, 2};
+    instruction_table[0x2A] = {std::function<void()>([this]() { ROL_Accumulator(); }), AddressingMode::Implied, 1, 2};
     instruction_table[0x2C] = {
         std::function<void(uint8_t)>([this](uint8_t value) { BIT(value); }), AddressingMode::Absolute, 3, 4
     };
@@ -221,7 +252,7 @@ void Cpu::initInstructionTable() {
     };
 
     instruction_table[0x30] = {
-        std::function<void(uint8_t)>([this](uint8_t value) { BMI(value); }), AddressingMode::Immediate, 2, 2
+        std::function<void(uint8_t)>([this](uint8_t value) { BMI(value); }), AddressingMode::Relative, 2, 2
     };
     instruction_table[0x31] = {
         std::function<void(uint8_t)>([this](uint8_t value) { AND(value); }), AddressingMode::IndirectIndexed, 2, 5, true
@@ -233,7 +264,7 @@ void Cpu::initInstructionTable() {
         std::function<void(uint16_t)>([this](uint16_t address) { ROL_Memory(address); }), AddressingMode::ZeroPageX, 2,
         6
     };
-    instruction_table[0x38] = {std::function<void()>([this]() { SEC(); }), AddressingMode::Immediate, 1, 2};
+    instruction_table[0x38] = {std::function<void()>([this]() { SEC(); }), AddressingMode::Implied, 1, 2};
     instruction_table[0x39] = {
         std::function<void(uint8_t)>([this](uint8_t value) { AND(value); }), AddressingMode::AbsoluteY, 3, 4, true
     };
@@ -245,7 +276,7 @@ void Cpu::initInstructionTable() {
         7
     };
 
-    instruction_table[0x40] = {std::function<void()>([this]() { RTI(); }), AddressingMode::Immediate, 1, 6};
+    instruction_table[0x40] = {std::function<void()>([this]() { RTI(); }), AddressingMode::Implied, 1, 6};
     instruction_table[0x41] = {
         std::function<void(uint8_t)>([this](uint8_t value) { EOR(value); }), AddressingMode::IndexedIndirect, 2, 6
     };
@@ -255,11 +286,11 @@ void Cpu::initInstructionTable() {
     instruction_table[0x46] = {
         std::function<void(uint16_t)>([this](uint16_t address) { LSR_Memory(address); }), AddressingMode::ZeroPage, 2, 5
     };
-    instruction_table[0x48] = {std::function<void()>([this]() { PHA(); }), AddressingMode::Immediate, 1, 3};
+    instruction_table[0x48] = {std::function<void()>([this]() { PHA(); }), AddressingMode::Implied, 1, 3};
     instruction_table[0x49] = {
         std::function<void(uint8_t)>([this](uint8_t value) { EOR(value); }), AddressingMode::Immediate, 2, 2
     };
-    instruction_table[0x4A] = {std::function<void()>([this]() { LSR_Accumulator(); }), AddressingMode::Immediate, 1, 2};
+    instruction_table[0x4A] = {std::function<void()>([this]() { LSR_Accumulator(); }), AddressingMode::Implied, 1, 2};
     instruction_table[0x4C] = {
         std::function<void(uint16_t)>([this](uint16_t address) { JMP(address); }), AddressingMode::Absolute, 3, 3
     };
@@ -271,7 +302,7 @@ void Cpu::initInstructionTable() {
     };
 
     instruction_table[0x50] = {
-        std::function<void(uint8_t)>([this](uint8_t value) { BVC(value); }), AddressingMode::Immediate, 2, 2
+        std::function<void(uint8_t)>([this](uint8_t value) { BVC(value); }), AddressingMode::Relative, 2, 2
     };
     instruction_table[0x51] = {
         std::function<void(uint8_t)>([this](uint8_t value) { EOR(value); }), AddressingMode::IndirectIndexed, 2, 5, true
@@ -283,7 +314,7 @@ void Cpu::initInstructionTable() {
         std::function<void(uint16_t)>([this](uint16_t address) { LSR_Memory(address); }), AddressingMode::ZeroPageX, 2,
         6
     };
-    instruction_table[0x58] = {std::function<void()>([this]() { CLI(); }), AddressingMode::Immediate, 1, 2};
+    instruction_table[0x58] = {std::function<void()>([this]() { CLI(); }), AddressingMode::Implied, 1, 2};
     instruction_table[0x59] = {
         std::function<void(uint8_t)>([this](uint8_t value) { EOR(value); }), AddressingMode::AbsoluteY, 3, 4, true
     };
@@ -295,7 +326,7 @@ void Cpu::initInstructionTable() {
         7
     };
 
-    instruction_table[0x60] = {std::function<void()>([this]() { RTS(); }), AddressingMode::Immediate, 1, 6};
+    instruction_table[0x60] = {std::function<void()>([this]() { RTS(); }), AddressingMode::Implied, 1, 6};
     instruction_table[0x61] = {
         std::function<void(uint8_t)>([this](uint8_t value) { ADC(value); }), AddressingMode::IndexedIndirect, 2, 6
     };
@@ -305,11 +336,11 @@ void Cpu::initInstructionTable() {
     instruction_table[0x66] = {
         std::function<void(uint16_t)>([this](uint16_t address) { ROR_Memory(address); }), AddressingMode::ZeroPage, 2, 5
     };
-    instruction_table[0x68] = {std::function<void()>([this]() { PLA(); }), AddressingMode::Immediate, 1, 4};
+    instruction_table[0x68] = {std::function<void()>([this]() { PLA(); }), AddressingMode::Implied, 1, 4};
     instruction_table[0x69] = {
         std::function<void(uint8_t)>([this](uint8_t value) { ADC(value); }), AddressingMode::Immediate, 2, 2
     };
-    instruction_table[0x6A] = {std::function<void()>([this]() { ROR_Accumulator(); }), AddressingMode::Immediate, 1, 2};
+    instruction_table[0x6A] = {std::function<void()>([this]() { ROR_Accumulator(); }), AddressingMode::Implied, 1, 2};
     instruction_table[0x6C] = {
         std::function<void(uint16_t)>([this](uint16_t address) { JMP(address); }), AddressingMode::Indirect, 3, 5
     };
@@ -321,7 +352,7 @@ void Cpu::initInstructionTable() {
     };
 
     instruction_table[0x70] = {
-        std::function<void(uint8_t)>([this](uint8_t value) { BVS(value); }), AddressingMode::Immediate, 2, 2
+        std::function<void(uint8_t)>([this](uint8_t value) { BVS(value); }), AddressingMode::Relative, 2, 2
     };
     instruction_table[0x71] = {
         std::function<void(uint8_t)>([this](uint8_t value) { ADC(value); }), AddressingMode::IndirectIndexed, 2, 5, true
@@ -333,7 +364,7 @@ void Cpu::initInstructionTable() {
         std::function<void(uint16_t)>([this](uint16_t address) { ROR_Memory(address); }), AddressingMode::ZeroPageX, 2,
         6
     };
-    instruction_table[0x78] = {std::function<void()>([this]() { SEI(); }), AddressingMode::Immediate, 1, 2};
+    instruction_table[0x78] = {std::function<void()>([this]() { SEI(); }), AddressingMode::Implied, 1, 2};
     instruction_table[0x79] = {
         std::function<void(uint8_t)>([this](uint8_t value) { ADC(value); }), AddressingMode::AbsoluteY, 3, 4, true
     };
@@ -357,8 +388,8 @@ void Cpu::initInstructionTable() {
     instruction_table[0x86] = {
         std::function<void(uint16_t)>([this](uint16_t address) { STX(address); }), AddressingMode::ZeroPage, 2, 3
     };
-    instruction_table[0x88] = {std::function<void()>([this]() { DEY(); }), AddressingMode::Immediate, 1, 2};
-    instruction_table[0x8A] = {std::function<void()>([this]() { TXA(); }), AddressingMode::Immediate, 1, 2};
+    instruction_table[0x88] = {std::function<void()>([this]() { DEY(); }), AddressingMode::Implied, 1, 2};
+    instruction_table[0x8A] = {std::function<void()>([this]() { TXA(); }), AddressingMode::Implied, 1, 2};
     instruction_table[0x8C] = {
         std::function<void(uint16_t)>([this](uint16_t address) { STY(address); }), AddressingMode::Absolute, 3, 4
     };
@@ -370,7 +401,7 @@ void Cpu::initInstructionTable() {
     };
 
     instruction_table[0x90] = {
-        std::function<void(uint8_t)>([this](uint8_t value) { BCC(value); }), AddressingMode::Immediate, 2, 2
+        std::function<void(uint8_t)>([this](uint8_t value) { BCC(value); }), AddressingMode::Relative, 2, 2
     };
     instruction_table[0x91] = {
         std::function<void(uint16_t)>([this](uint16_t address) { STA(address); }), AddressingMode::IndirectIndexed, 2, 6
@@ -384,11 +415,11 @@ void Cpu::initInstructionTable() {
     instruction_table[0x96] = {
         std::function<void(uint16_t)>([this](uint16_t address) { STX(address); }), AddressingMode::ZeroPageY, 2, 4
     };
-    instruction_table[0x98] = {std::function<void()>([this]() { TYA(); }), AddressingMode::Immediate, 1, 2};
+    instruction_table[0x98] = {std::function<void()>([this]() { TYA(); }), AddressingMode::Implied, 1, 2};
     instruction_table[0x99] = {
         std::function<void(uint16_t)>([this](uint16_t address) { STA(address); }), AddressingMode::AbsoluteY, 3, 5
     };
-    instruction_table[0x9A] = {std::function<void()>([this]() { TXS(); }), AddressingMode::Immediate, 1, 2};
+    instruction_table[0x9A] = {std::function<void()>([this]() { TXS(); }), AddressingMode::Implied, 1, 2};
     instruction_table[0x9D] = {
         std::function<void(uint16_t)>([this](uint16_t address) { STA(address); }), AddressingMode::AbsoluteX, 3, 5
     };
@@ -411,11 +442,11 @@ void Cpu::initInstructionTable() {
     instruction_table[0xA6] = {
         std::function<void(uint8_t)>([this](uint8_t value) { LDX(value); }), AddressingMode::ZeroPage, 2, 3
     };
-    instruction_table[0xA8] = {std::function<void()>([this]() { TAY(); }), AddressingMode::Immediate, 1, 2};
+    instruction_table[0xA8] = {std::function<void()>([this]() { TAY(); }), AddressingMode::Implied, 1, 2};
     instruction_table[0xA9] = {
         std::function<void(uint8_t)>([this](uint8_t value) { LDA(value); }), AddressingMode::Immediate, 2, 2
     };
-    instruction_table[0xAA] = {std::function<void()>([this]() { TAX(); }), AddressingMode::Immediate, 1, 2};
+    instruction_table[0xAA] = {std::function<void()>([this]() { TAX(); }), AddressingMode::Implied, 1, 2};
     instruction_table[0xAC] = {
         std::function<void(uint8_t)>([this](uint8_t value) { LDY(value); }), AddressingMode::Absolute, 3, 4
     };
@@ -427,7 +458,7 @@ void Cpu::initInstructionTable() {
     };
 
     instruction_table[0xB0] = {
-        std::function<void(uint8_t)>([this](uint8_t value) { BCS(value); }), AddressingMode::Immediate, 2, 2
+        std::function<void(uint8_t)>([this](uint8_t value) { BCS(value); }), AddressingMode::Relative, 2, 2
     };
     instruction_table[0xB1] = {
         std::function<void(uint8_t)>([this](uint8_t value) { LDA(value); }), AddressingMode::IndirectIndexed, 2, 5, true
@@ -441,11 +472,11 @@ void Cpu::initInstructionTable() {
     instruction_table[0xB6] = {
         std::function<void(uint8_t)>([this](uint8_t value) { LDX(value); }), AddressingMode::ZeroPageY, 2, 4
     };
-    instruction_table[0xB8] = {std::function<void()>([this]() { CLV(); }), AddressingMode::Immediate, 1, 2};
+    instruction_table[0xB8] = {std::function<void()>([this]() { CLV(); }), AddressingMode::Implied, 1, 2};
     instruction_table[0xB9] = {
         std::function<void(uint8_t)>([this](uint8_t value) { LDA(value); }), AddressingMode::AbsoluteY, 3, 4, true
     };
-    instruction_table[0xBA] = {std::function<void()>([this]() { TSX(); }), AddressingMode::Immediate, 1, 2};
+    instruction_table[0xBA] = {std::function<void()>([this]() { TSX(); }), AddressingMode::Implied, 1, 2};
     instruction_table[0xBC] = {
         std::function<void(uint8_t)>([this](uint8_t value) { LDY(value); }), AddressingMode::AbsoluteX, 3, 4, true
     };
@@ -471,11 +502,11 @@ void Cpu::initInstructionTable() {
     instruction_table[0xC6] = {
         std::function<void(uint16_t)>([this](uint16_t address) { DEC(address); }), AddressingMode::ZeroPage, 2, 5
     };
-    instruction_table[0xC8] = {std::function<void()>([this]() { INY(); }), AddressingMode::Immediate, 1, 2};
+    instruction_table[0xC8] = {std::function<void()>([this]() { INY(); }), AddressingMode::Implied, 1, 2};
     instruction_table[0xC9] = {
         std::function<void(uint8_t)>([this](uint8_t value) { CMP(value); }), AddressingMode::Immediate, 2, 2
     };
-    instruction_table[0xCA] = {std::function<void()>([this]() { DEX(); }), AddressingMode::Immediate, 1, 2};
+    instruction_table[0xCA] = {std::function<void()>([this]() { DEX(); }), AddressingMode::Implied, 1, 2};
     instruction_table[0xCC] = {
         std::function<void(uint8_t)>([this](uint8_t value) { CPY(value); }), AddressingMode::Absolute, 3, 4
     };
@@ -487,7 +518,7 @@ void Cpu::initInstructionTable() {
     };
 
     instruction_table[0xD0] = {
-        std::function<void(uint8_t)>([this](uint8_t value) { BNE(value); }), AddressingMode::Immediate, 2, 2
+        std::function<void(uint8_t)>([this](uint8_t value) { BNE(value); }), AddressingMode::Relative, 2, 2
     };
     instruction_table[0xD1] = {
         std::function<void(uint8_t)>([this](uint8_t value) { CMP(value); }), AddressingMode::IndirectIndexed, 2, 5, true
@@ -498,7 +529,7 @@ void Cpu::initInstructionTable() {
     instruction_table[0xD6] = {
         std::function<void(uint16_t)>([this](uint16_t address) { DEC(address); }), AddressingMode::ZeroPageX, 2, 6
     };
-    instruction_table[0xD8] = {std::function<void()>([this]() { CLD(); }), AddressingMode::Immediate, 1, 2};
+    instruction_table[0xD8] = {std::function<void()>([this]() { CLD(); }), AddressingMode::Implied, 1, 2};
     instruction_table[0xD9] = {
         std::function<void(uint8_t)>([this](uint8_t value) { CMP(value); }), AddressingMode::AbsoluteY, 3, 4, true
     };
@@ -524,11 +555,11 @@ void Cpu::initInstructionTable() {
     instruction_table[0xE6] = {
         std::function<void(uint16_t)>([this](uint16_t address) { INC(address); }), AddressingMode::ZeroPage, 2, 5
     };
-    instruction_table[0xE8] = {std::function<void()>([this]() { INX(); }), AddressingMode::Immediate, 1, 2};
+    instruction_table[0xE8] = {std::function<void()>([this]() { INX(); }), AddressingMode::Implied, 1, 2};
     instruction_table[0xE9] = {
         std::function<void(uint8_t)>([this](uint8_t value) { SBC(value); }), AddressingMode::Immediate, 2, 2
     };
-    instruction_table[0xEA] = {std::function<void()>([this]() { NOP(); }), AddressingMode::Immediate, 1, 2};
+    instruction_table[0xEA] = {std::function<void()>([this]() { NOP(); }), AddressingMode::Implied, 1, 2};
     instruction_table[0xEC] = {
         std::function<void(uint8_t)>([this](uint8_t value) { CPX(value); }), AddressingMode::Absolute, 3, 4
     };
@@ -540,7 +571,7 @@ void Cpu::initInstructionTable() {
     };
 
     instruction_table[0xF0] = {
-        std::function<void(uint8_t)>([this](uint8_t value) { BEQ(value); }), AddressingMode::Immediate, 2, 2
+        std::function<void(uint8_t)>([this](uint8_t value) { BEQ(value); }), AddressingMode::Relative, 2, 2
     };
     instruction_table[0xF1] = {
         std::function<void(uint8_t)>([this](uint8_t value) { SBC(value); }), AddressingMode::IndirectIndexed, 2, 5, true
@@ -551,7 +582,7 @@ void Cpu::initInstructionTable() {
     instruction_table[0xF6] = {
         std::function<void(uint16_t)>([this](uint16_t address) { INC(address); }), AddressingMode::ZeroPageX, 2, 6
     };
-    instruction_table[0xF8] = {std::function<void()>([this]() { SED(); }), AddressingMode::Immediate, 1, 2};
+    instruction_table[0xF8] = {std::function<void()>([this]() { SED(); }), AddressingMode::Implied, 1, 2};
     instruction_table[0xF9] = {
         std::function<void(uint8_t)>([this](uint8_t value) { SBC(value); }), AddressingMode::AbsoluteY, 3, 4, true
     };

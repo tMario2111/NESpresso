@@ -39,7 +39,9 @@ public:
         AbsoluteY,
         Indirect,
         IndexedIndirect,
-        IndirectIndexed
+        IndirectIndexed,
+        Implied,
+   Relative
     };
 
     struct Instruction {
