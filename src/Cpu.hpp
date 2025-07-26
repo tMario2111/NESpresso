@@ -41,7 +41,7 @@ public:
         IndexedIndirect,
         IndirectIndexed,
         Implied,
-   Relative
+        Relative
     };
 
     struct Instruction {
@@ -90,10 +90,7 @@ private:
 
     void ASL_Accumulator();
 
-
     void ASL_Memory(uint16_t address);
-
-    void ASL(uint8_t &value);
 
     void BCC(uint8_t value);
 
@@ -157,8 +154,6 @@ private:
 
     void LSR_Memory(uint16_t address);
 
-    void LSR(uint8_t &value);
-
     void NOP();
 
     void ORA(uint8_t value);
@@ -179,9 +174,6 @@ private:
 
     void ROR_Memory(uint16_t address);
 
-    void ROL(uint8_t &value);
-
-    void ROR(uint8_t &value);
 
     void RTI();
 
