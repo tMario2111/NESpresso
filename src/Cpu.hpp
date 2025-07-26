@@ -18,6 +18,8 @@ public:
 
     uint8_t executeInstruction();
 
+    uint64_t total_cycles = 0;
+
     struct Registers {
         uint8_t a;
         uint8_t x, y;
@@ -61,6 +63,7 @@ public:
 
 private:
     Memory &memory = Memory::instance();
+
 
     Cpu();
 

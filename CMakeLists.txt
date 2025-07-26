@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.30)
+cmake_minimum_required(VERSION 3.31)
 
 include(FetchContent)
 
@@ -14,10 +14,12 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(spdlog)
 
-add_executable(NESpresso main.cpp
+add_executable(NESpresso
         src/Cpu.cpp
         src/Cpu.hpp
         src/Memory.cpp
-        src/Memory.hpp)
+        src/Memory.hpp
+        TestFramework.cpp
+)
 
 target_link_libraries(NESpresso PRIVATE spdlog::spdlog)

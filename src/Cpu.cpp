@@ -174,6 +174,9 @@ uint8_t Cpu::executeInstruction() {
         registers.pc += instruction.bytes;
     }
 
+    uint8_t instruction_cycles = instruction.cycles +
+                            (instruction.page_crossed && page_crossed ? 1 : 0);
+
     // Returnează ciclurile, adăugând un ciclu dacă a avut loc traversarea paginii
     return instruction.cycles + (instruction.page_crossed && page_crossed ? 1 : 0);
 }
@@ -713,8 +716,10 @@ void Cpu::BCC(uint8_t value) {
     int8_t offset = static_cast<int8_t>(value); // Convert to signed 8-bit integer
     // Branch if Carry Clear
     if (!(registers.p & 0x01)) {
-        // Check Carry Flag
-        registers.pc += offset; // Adjust Program Counter
+        uint16_t old_pc = registers.pc + 2;
+        registers.pc += offset + 2; // Adjust Program Counter
+        total_cycles += 1 + ((old_pc & 0xFF00) != (registers.pc & 0xFF00) ? 1 : 0);
+
     }
 }
 
@@ -723,8 +728,9 @@ void Cpu::BCS(uint8_t value) {
     int8_t offset = static_cast<int8_t>(value); // Convert to signed 8-bit integer
     // Branch if Carry Set
     if (registers.p & 0x01) {
-        // Check Carry Flag
-        registers.pc += offset; // Adjust Program Counter
+        uint16_t old_pc = registers.pc + 2;
+        registers.pc += offset + 2; // Adjust Program Counter
+        total_cycles += 1 + ((old_pc & 0xFF00) != (registers.pc & 0xFF00) ? 1 : 0);
     }
 }
 
@@ -732,8 +738,10 @@ void Cpu::BEQ(uint8_t value) {
     int8_t offset = static_cast<int8_t>(value); // Convert to signed 8-bit integer
     // Branch if Equal (Zero Flag is set)
     if (registers.p & 0x02) {
-        // Check Zero Flag
-        registers.pc += offset; // Adjust Program Counter
+        uint16_t old_pc = registers.pc + 2;
+        registers.pc += offset + 2; // Adjust Program Counter
+        total_cycles += 1 + ((old_pc & 0xFF00) != (registers.pc & 0xFF00) ? 1 : 0);
+
     }
 }
 
@@ -748,8 +756,10 @@ void Cpu::BMI(uint8_t value) {
     int8_t offset = static_cast<int8_t>(value); // Convert to signed 8-bit integer
     // Branch if Minus (Negative Flag is set)
     if (registers.p & 0x80) {
-        // Check Negative Flag
-        registers.pc += offset; // Adjust Program Counter
+        uint16_t old_pc = registers.pc + 2;
+        registers.pc += offset + 2; // Adjust Program Counter
+        total_cycles += 1 + ((old_pc & 0xFF00) != (registers.pc & 0xFF00) ? 1 : 0);
+
     }
 }
 
@@ -757,8 +767,10 @@ void Cpu::BNE(uint8_t value) {
     int8_t offset = static_cast<int8_t>(value); // Convert to signed 8-bit integer
     // Branch if Not Equal (Zero Flag is clear)
     if (!(registers.p & 0x02)) {
-        // Check Zero Flag
-        registers.pc += offset; // Adjust Program Counter
+        uint16_t old_pc = registers.pc + 2;
+        registers.pc += offset + 2; // Adjust Program Counter
+        total_cycles += 1 + ((old_pc & 0xFF00) != (registers.pc & 0xFF00) ? 1 : 0);
+
     }
 }
 
@@ -766,8 +778,10 @@ void Cpu::BPL(uint8_t value) {
     int8_t offset = static_cast<int8_t>(value); // Convert to signed 8-bit integer
     // Branch if Positive (Negative Flag is clear)
     if (!(registers.p & 0x80)) {
-        // Check Negative Flag
-        registers.pc += offset; // Adjust Program Counter
+        uint16_t old_pc = registers.pc + 2;
+        registers.pc += offset + 2; // Adjust Program Counter
+        total_cycles += 1 + ((old_pc & 0xFF00) != (registers.pc & 0xFF00) ? 1 : 0);
+
     }
 }
 
@@ -794,8 +808,9 @@ void Cpu::BVC(uint8_t value) {
     int8_t offset = static_cast<int8_t>(value); // Convert to signed 8-bit integer
     // Branch if Overflow Clear (Overflow Flag is clear)
     if (!(registers.p & 0x40)) {
-        // Check Overflow Flag
-        registers.pc += offset; // Adjust Program Counter
+        uint16_t old_pc = registers.pc + 2;
+        registers.pc += offset + 2; // Adjust Program Counter
+        total_cycles += 1 + ((old_pc & 0xFF00) != (registers.pc & 0xFF00) ? 1 : 0);
     }
 }
 
@@ -803,8 +818,10 @@ void Cpu::BVS(uint8_t value) {
     int8_t offset = static_cast<int8_t>(value); // Convert to signed 8-bit integer
     // Branch if Overflow Set (Overflow Flag is set)
     if (registers.p & 0x40) {
-        // Check Overflow Flag
-        registers.pc += offset; // Adjust Program Counter
+        uint16_t old_pc = registers.pc + 2;
+        registers.pc += offset + 2; // Adjust Program Counter
+        total_cycles += 1 + ((old_pc & 0xFF00) != (registers.pc & 0xFF00) ? 1 : 0);
+
     }
 }
 
