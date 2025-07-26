@@ -6,174 +6,561 @@ Cpu &Cpu::instance() {
     return cpu;
 }
 
+uint8_t Cpu::executeInstruction() {
+    uint16_t initial_pc = registers.pc;
+    uint8_t opcode = readMemory(registers.pc);
+    Instruction& instruction = instruction_table[opcode];
+    bool page_crossed = false;
+
+    // Determină valoarea sau adresa în funcție de modul de adresare
+    switch (instruction.mode) {
+        case AddressingMode::Immediate: {
+            uint8_t value = readMemory(registers.pc + 1);
+            std::visit([&](auto&& func) {
+                if constexpr (std::is_invocable_v<decltype(func), uint8_t>) {
+                    func(value);
+                }
+            }, instruction.execute);
+            break;
+        }
+        case AddressingMode::ZeroPage: {
+            uint8_t addr_low = readMemory(registers.pc + 1);
+            uint16_t address = addr_low;
+            std::visit([&](auto&& func) {
+                if constexpr (std::is_invocable_v<decltype(func), uint8_t>) {
+                    func(readMemory(address));
+                } else if constexpr (std::is_invocable_v<decltype(func), uint16_t>) {
+                    func(address);
+                }
+            }, instruction.execute);
+            break;
+        }
+        case AddressingMode::ZeroPageX: {
+            uint8_t addr_low = readMemory(registers.pc + 1);
+            uint16_t address = (addr_low + registers.x) & 0xFF;
+            std::visit([&](auto&& func) {
+                if constexpr (std::is_invocable_v<decltype(func), uint8_t>) {
+                    func(readMemory(address));
+                } else if constexpr (std::is_invocable_v<decltype(func), uint16_t>) {
+                    func(address);
+                }
+            }, instruction.execute);
+            break;
+        }
+        case AddressingMode::ZeroPageY: {
+            uint8_t addr_low = readMemory(registers.pc + 1);
+            uint16_t address = (addr_low + registers.y) & 0xFF;
+            std::visit([&](auto&& func) {
+                if constexpr (std::is_invocable_v<decltype(func), uint16_t>) {
+                    func(address);
+                }
+            }, instruction.execute);
+            break;
+        }
+        case AddressingMode::Absolute: {
+            uint16_t address = readMemory(registers.pc + 1) | (readMemory(registers.pc + 2) << 8);
+            std::visit([&](auto&& func) {
+                if constexpr (std::is_invocable_v<decltype(func), uint8_t>) {
+                    func(readMemory(address));
+                } else if constexpr (std::is_invocable_v<decltype(func), uint16_t>) {
+                    func(address);
+                }
+            }, instruction.execute);
+            break;
+        }
+        case AddressingMode::AbsoluteX: {
+            uint16_t base_address = readMemory(registers.pc + 1) | (readMemory(registers.pc + 2) << 8);
+            uint16_t effective_address = base_address + registers.x;
+            page_crossed = (base_address & 0xFF00) != (effective_address & 0xFF00);
+            std::visit([&](auto&& func) {
+                if constexpr (std::is_invocable_v<decltype(func), uint8_t>) {
+                    func(readMemory(effective_address));
+                } else if constexpr (std::is_invocable_v<decltype(func), uint16_t>) {
+                    func(effective_address);
+                }
+            }, instruction.execute);
+            break;
+        }
+        case AddressingMode::AbsoluteY: {
+            uint16_t base_address = readMemory(registers.pc + 1) | (readMemory(registers.pc + 2) << 8);
+            uint16_t effective_address = base_address + registers.y;
+            page_crossed = (base_address & 0xFF00) != (effective_address & 0xFF00);
+            std::visit([&](auto&& func) {
+                if constexpr (std::is_invocable_v<decltype(func), uint8_t>) {
+                    func(readMemory(effective_address));
+                } else if constexpr (std::is_invocable_v<decltype(func), uint16_t>) {
+                    func(effective_address);
+                }
+            }, instruction.execute);
+            break;
+        }
+        case AddressingMode::Indirect: {
+            uint16_t ptr_address = readMemory(registers.pc + 1) | (readMemory(registers.pc + 2) << 8);
+            uint16_t address = readMemory(ptr_address) | (readMemory((ptr_address & 0xFF00) | ((ptr_address + 1) & 0xFF)) << 8);
+            std::visit([&](auto&& func) {
+                if constexpr (std::is_invocable_v<decltype(func), uint16_t>) {
+                    func(address);
+                }
+            }, instruction.execute);
+            break;
+        }
+        case AddressingMode::IndexedIndirect: {
+            uint8_t base_addr = readMemory(registers.pc + 1);
+            uint8_t effective_base = base_addr + registers.x;
+            uint16_t address = readMemory(effective_base) | (readMemory((effective_base + 1) & 0xFF) << 8);
+            std::visit([&](auto&& func) {
+                if constexpr (std::is_invocable_v<decltype(func), uint8_t>) {
+                    func(readMemory(address));
+                } else if constexpr (std::is_invocable_v<decltype(func), uint16_t>) {
+                    func(address);
+                }
+            }, instruction.execute);
+            break;
+        }
+        case AddressingMode::IndirectIndexed: {
+            uint8_t base_addr = readMemory(registers.pc + 1);
+            uint16_t base_address = readMemory(base_addr) | (readMemory((base_addr + 1) & 0xFF) << 8);
+            uint16_t effective_address = base_address + registers.y;
+            page_crossed = (base_address & 0xFF00) != (effective_address & 0xFF00);
+            std::visit([&](auto&& func) {
+                if constexpr (std::is_invocable_v<decltype(func), uint8_t>) {
+                    func(readMemory(effective_address));
+                } else if constexpr (std::is_invocable_v<decltype(func), uint16_t>) {
+                    func(effective_address);
+                }
+            }, instruction.execute);
+            break;
+        }
+    }
+
+    // Actualizează PC-ul dacă nu a fost modificat de instrucțiune (ex. JMP, BRK)
+    if (registers.pc == initial_pc) {
+        registers.pc += instruction.bytes;
+    }
+
+    // Returnează ciclurile, adăugând un ciclu dacă a avut loc traversarea paginii
+    return instruction.cycles + (instruction.page_crossed && page_crossed ? 1 : 0);
+}
+
 void Cpu::initInstructionTable() {
-    // These are only the OFFICIAL 6502 instructions.
-    instruction_table[0x00] = {"BRK", AddressingMode::Immediate, 1, 7};
-    instruction_table[0x01] = {"ORA", AddressingMode::IndexedIndirect, 2, 6};
-    instruction_table[0x05] = {"ORA", AddressingMode::ZeroPage, 2, 3};
-    instruction_table[0x06] = {"ASL", AddressingMode::ZeroPage, 2, 5};
-    instruction_table[0x08] = {"PHP", AddressingMode::Immediate, 1, 3};
-    instruction_table[0x09] = {"ORA", AddressingMode::Immediate, 2, 2};
-    instruction_table[0x0A] = {"ASL", AddressingMode::Immediate, 1, 2}; // Accumulator
-    instruction_table[0x0D] = {"ORA", AddressingMode::Absolute, 3, 4};
-    instruction_table[0x0E] = {"ASL", AddressingMode::Absolute, 3, 6};
+    instruction_table[0x00] = {std::function<void()>([this]() { BRK(); }), AddressingMode::Immediate, 1, 7};
+    instruction_table[0x01] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { ORA(value); }), AddressingMode::IndexedIndirect, 2, 6
+    };
+    instruction_table[0x05] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { ORA(value); }), AddressingMode::ZeroPage, 2, 3
+    };
+    instruction_table[0x06] = {
+        std::function<void(uint16_t)>([this](uint16_t address) { ASL_Memory(address); }), AddressingMode::ZeroPage, 2, 5
+    };
+    instruction_table[0x08] = {std::function<void()>([this]() { PHP(); }), AddressingMode::Immediate, 1, 3};
+    instruction_table[0x09] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { ORA(value); }), AddressingMode::Immediate, 2, 2
+    };
+    instruction_table[0x0A] = {std::function<void()>([this]() { ASL_Accumulator(); }), AddressingMode::Immediate, 1, 2};
+    instruction_table[0x0D] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { ORA(value); }), AddressingMode::Absolute, 3, 4
+    };
+    instruction_table[0x0E] = {
+        std::function<void(uint16_t)>([this](uint16_t address) { ASL_Memory(address); }), AddressingMode::Absolute, 3, 6
+    };
 
-    instruction_table[0x10] = {"BPL", AddressingMode::Immediate, 2, 2}; // Relative
-    instruction_table[0x11] = {"ORA", AddressingMode::IndirectIndexed, 2, 5, true};
-    instruction_table[0x15] = {"ORA", AddressingMode::ZeroPageX, 2, 4};
-    instruction_table[0x16] = {"ASL", AddressingMode::ZeroPageX, 2, 6};
-    instruction_table[0x18] = {"CLC", AddressingMode::Immediate, 1, 2};
-    instruction_table[0x19] = {"ORA", AddressingMode::AbsoluteY, 3, 4, true};
-    instruction_table[0x1D] = {"ORA", AddressingMode::AbsoluteX, 3, 4, true};
-    instruction_table[0x1E] = {"ASL", AddressingMode::AbsoluteX, 3, 7};
+    instruction_table[0x10] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { BPL(value); }), AddressingMode::Immediate, 2, 2
+    };
+    instruction_table[0x11] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { ORA(value); }), AddressingMode::IndirectIndexed, 2, 5, true
+    };
+    instruction_table[0x15] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { ORA(value); }), AddressingMode::ZeroPageX, 2, 4
+    };
+    instruction_table[0x16] = {
+        std::function<void(uint16_t)>([this](uint16_t address) { ASL_Memory(address); }), AddressingMode::ZeroPageX, 2,
+        6
+    };
+    instruction_table[0x18] = {std::function<void()>([this]() { CLC(); }), AddressingMode::Immediate, 1, 2};
+    instruction_table[0x19] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { ORA(value); }), AddressingMode::AbsoluteY, 3, 4, true
+    };
+    instruction_table[0x1D] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { ORA(value); }), AddressingMode::AbsoluteX, 3, 4, true
+    };
+    instruction_table[0x1E] = {
+        std::function<void(uint16_t)>([this](uint16_t address) { ASL_Memory(address); }), AddressingMode::AbsoluteX, 3,
+        7
+    };
 
-    instruction_table[0x20] = {"JSR", AddressingMode::Absolute, 3, 6};
-    instruction_table[0x21] = {"AND", AddressingMode::IndexedIndirect, 2, 6};
-    instruction_table[0x24] = {"BIT", AddressingMode::ZeroPage, 2, 3};
-    instruction_table[0x25] = {"AND", AddressingMode::ZeroPage, 2, 3};
-    instruction_table[0x26] = {"ROL", AddressingMode::ZeroPage, 2, 5};
-    instruction_table[0x28] = {"PLP", AddressingMode::Immediate, 1, 4};
-    instruction_table[0x29] = {"AND", AddressingMode::Immediate, 2, 2};
-    instruction_table[0x2A] = {"ROL", AddressingMode::Immediate, 1, 2}; // Accumulator
-    instruction_table[0x2C] = {"BIT", AddressingMode::Absolute, 3, 4};
-    instruction_table[0x2D] = {"AND", AddressingMode::Absolute, 3, 4};
-    instruction_table[0x2E] = {"ROL", AddressingMode::Absolute, 3, 6};
+    instruction_table[0x20] = {
+        std::function<void(uint16_t)>([this](uint16_t address) { JSR(address); }), AddressingMode::Absolute, 3, 6
+    };
+    instruction_table[0x21] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { AND(value); }), AddressingMode::IndexedIndirect, 2, 6
+    };
+    instruction_table[0x24] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { BIT(value); }), AddressingMode::ZeroPage, 2, 3
+    };
+    instruction_table[0x25] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { AND(value); }), AddressingMode::ZeroPage, 2, 3
+    };
+    instruction_table[0x26] = {
+        std::function<void(uint16_t)>([this](uint16_t address) { ROL_Memory(address); }), AddressingMode::ZeroPage, 2, 5
+    };
+    instruction_table[0x28] = {std::function<void()>([this]() { PLP(); }), AddressingMode::Immediate, 1, 4};
+    instruction_table[0x29] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { AND(value); }), AddressingMode::Immediate, 2, 2
+    };
+    instruction_table[0x2A] = {std::function<void()>([this]() { ROL_Accumulator(); }), AddressingMode::Immediate, 1, 2};
+    instruction_table[0x2C] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { BIT(value); }), AddressingMode::Absolute, 3, 4
+    };
+    instruction_table[0x2D] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { AND(value); }), AddressingMode::Absolute, 3, 4
+    };
+    instruction_table[0x2E] = {
+        std::function<void(uint16_t)>([this](uint16_t address) { ROL_Memory(address); }), AddressingMode::Absolute, 3, 6
+    };
 
-    instruction_table[0x30] = {"BMI", AddressingMode::Immediate, 2, 2}; // Relative
-    instruction_table[0x31] = {"AND", AddressingMode::IndirectIndexed, 2, 5, true};
-    instruction_table[0x35] = {"AND", AddressingMode::ZeroPageX, 2, 4};
-    instruction_table[0x36] = {"ROL", AddressingMode::ZeroPageX, 2, 6};
-    instruction_table[0x38] = {"SEC", AddressingMode::Immediate, 1, 2};
-    instruction_table[0x39] = {"AND", AddressingMode::AbsoluteY, 3, 4, true};
-    instruction_table[0x3D] = {"AND", AddressingMode::AbsoluteX, 3, 4, true};
-    instruction_table[0x3E] = {"ROL", AddressingMode::AbsoluteX, 3, 7};
+    instruction_table[0x30] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { BMI(value); }), AddressingMode::Immediate, 2, 2
+    };
+    instruction_table[0x31] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { AND(value); }), AddressingMode::IndirectIndexed, 2, 5, true
+    };
+    instruction_table[0x35] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { AND(value); }), AddressingMode::ZeroPageX, 2, 4
+    };
+    instruction_table[0x36] = {
+        std::function<void(uint16_t)>([this](uint16_t address) { ROL_Memory(address); }), AddressingMode::ZeroPageX, 2,
+        6
+    };
+    instruction_table[0x38] = {std::function<void()>([this]() { SEC(); }), AddressingMode::Immediate, 1, 2};
+    instruction_table[0x39] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { AND(value); }), AddressingMode::AbsoluteY, 3, 4, true
+    };
+    instruction_table[0x3D] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { AND(value); }), AddressingMode::AbsoluteX, 3, 4, true
+    };
+    instruction_table[0x3E] = {
+        std::function<void(uint16_t)>([this](uint16_t address) { ROL_Memory(address); }), AddressingMode::AbsoluteX, 3,
+        7
+    };
 
-    instruction_table[0x40] = {"RTI", AddressingMode::Immediate, 1, 6};
-    instruction_table[0x41] = {"EOR", AddressingMode::IndexedIndirect, 2, 6};
-    instruction_table[0x45] = {"EOR", AddressingMode::ZeroPage, 2, 3};
-    instruction_table[0x46] = {"LSR", AddressingMode::ZeroPage, 2, 5};
-    instruction_table[0x48] = {"PHA", AddressingMode::Immediate, 1, 3};
-    instruction_table[0x49] = {"EOR", AddressingMode::Immediate, 2, 2};
-    instruction_table[0x4A] = {"LSR", AddressingMode::Immediate, 1, 2}; // Accumulator
-    instruction_table[0x4C] = {"JMP", AddressingMode::Absolute, 3, 3};
-    instruction_table[0x4D] = {"EOR", AddressingMode::Absolute, 3, 4};
-    instruction_table[0x4E] = {"LSR", AddressingMode::Absolute, 3, 6};
+    instruction_table[0x40] = {std::function<void()>([this]() { RTI(); }), AddressingMode::Immediate, 1, 6};
+    instruction_table[0x41] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { EOR(value); }), AddressingMode::IndexedIndirect, 2, 6
+    };
+    instruction_table[0x45] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { EOR(value); }), AddressingMode::ZeroPage, 2, 3
+    };
+    instruction_table[0x46] = {
+        std::function<void(uint16_t)>([this](uint16_t address) { LSR_Memory(address); }), AddressingMode::ZeroPage, 2, 5
+    };
+    instruction_table[0x48] = {std::function<void()>([this]() { PHA(); }), AddressingMode::Immediate, 1, 3};
+    instruction_table[0x49] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { EOR(value); }), AddressingMode::Immediate, 2, 2
+    };
+    instruction_table[0x4A] = {std::function<void()>([this]() { LSR_Accumulator(); }), AddressingMode::Immediate, 1, 2};
+    instruction_table[0x4C] = {
+        std::function<void(uint16_t)>([this](uint16_t address) { JMP(address); }), AddressingMode::Absolute, 3, 3
+    };
+    instruction_table[0x4D] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { EOR(value); }), AddressingMode::Absolute, 3, 4
+    };
+    instruction_table[0x4E] = {
+        std::function<void(uint16_t)>([this](uint16_t address) { LSR_Memory(address); }), AddressingMode::Absolute, 3, 6
+    };
 
-    instruction_table[0x50] = {"BVC", AddressingMode::Immediate, 2, 2}; // Relative
-    instruction_table[0x51] = {"EOR", AddressingMode::IndirectIndexed, 2, 5, true};
-    instruction_table[0x55] = {"EOR", AddressingMode::ZeroPageX, 2, 4};
-    instruction_table[0x56] = {"LSR", AddressingMode::ZeroPageX, 2, 6};
-    instruction_table[0x58] = {"CLI", AddressingMode::Immediate, 1, 2};
-    instruction_table[0x59] = {"EOR", AddressingMode::AbsoluteY, 3, 4, true};
-    instruction_table[0x5D] = {"EOR", AddressingMode::AbsoluteX, 3, 4, true};
-    instruction_table[0x5E] = {"LSR", AddressingMode::AbsoluteX, 3, 7};
+    instruction_table[0x50] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { BVC(value); }), AddressingMode::Immediate, 2, 2
+    };
+    instruction_table[0x51] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { EOR(value); }), AddressingMode::IndirectIndexed, 2, 5, true
+    };
+    instruction_table[0x55] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { EOR(value); }), AddressingMode::ZeroPageX, 2, 4
+    };
+    instruction_table[0x56] = {
+        std::function<void(uint16_t)>([this](uint16_t address) { LSR_Memory(address); }), AddressingMode::ZeroPageX, 2,
+        6
+    };
+    instruction_table[0x58] = {std::function<void()>([this]() { CLI(); }), AddressingMode::Immediate, 1, 2};
+    instruction_table[0x59] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { EOR(value); }), AddressingMode::AbsoluteY, 3, 4, true
+    };
+    instruction_table[0x5D] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { EOR(value); }), AddressingMode::AbsoluteX, 3, 4, true
+    };
+    instruction_table[0x5E] = {
+        std::function<void(uint16_t)>([this](uint16_t address) { LSR_Memory(address); }), AddressingMode::AbsoluteX, 3,
+        7
+    };
 
-    instruction_table[0x60] = {"RTS", AddressingMode::Immediate, 1, 6};
-    instruction_table[0x61] = {"ADC", AddressingMode::IndexedIndirect, 2, 6};
-    instruction_table[0x65] = {"ADC", AddressingMode::ZeroPage, 2, 3};
-    instruction_table[0x66] = {"ROR", AddressingMode::ZeroPage, 2, 5};
-    instruction_table[0x68] = {"PLA", AddressingMode::Immediate, 1, 4};
-    instruction_table[0x69] = {"ADC", AddressingMode::Immediate, 2, 2};
-    instruction_table[0x6A] = {"ROR", AddressingMode::Immediate, 1, 2}; // Accumulator
-    instruction_table[0x6C] = {"JMP", AddressingMode::Indirect, 3, 5};
-    instruction_table[0x6D] = {"ADC", AddressingMode::Absolute, 3, 4};
-    instruction_table[0x6E] = {"ROR", AddressingMode::Absolute, 3, 6};
+    instruction_table[0x60] = {std::function<void()>([this]() { RTS(); }), AddressingMode::Immediate, 1, 6};
+    instruction_table[0x61] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { ADC(value); }), AddressingMode::IndexedIndirect, 2, 6
+    };
+    instruction_table[0x65] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { ADC(value); }), AddressingMode::ZeroPage, 2, 3
+    };
+    instruction_table[0x66] = {
+        std::function<void(uint16_t)>([this](uint16_t address) { ROR_Memory(address); }), AddressingMode::ZeroPage, 2, 5
+    };
+    instruction_table[0x68] = {std::function<void()>([this]() { PLA(); }), AddressingMode::Immediate, 1, 4};
+    instruction_table[0x69] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { ADC(value); }), AddressingMode::Immediate, 2, 2
+    };
+    instruction_table[0x6A] = {std::function<void()>([this]() { ROR_Accumulator(); }), AddressingMode::Immediate, 1, 2};
+    instruction_table[0x6C] = {
+        std::function<void(uint16_t)>([this](uint16_t address) { JMP(address); }), AddressingMode::Indirect, 3, 5
+    };
+    instruction_table[0x6D] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { ADC(value); }), AddressingMode::Absolute, 3, 4
+    };
+    instruction_table[0x6E] = {
+        std::function<void(uint16_t)>([this](uint16_t address) { ROR_Memory(address); }), AddressingMode::Absolute, 3, 6
+    };
 
-    instruction_table[0x70] = {"BVS", AddressingMode::Immediate, 2, 2}; // Relative
-    instruction_table[0x71] = {"ADC", AddressingMode::IndirectIndexed, 2, 5, true};
-    instruction_table[0x75] = {"ADC", AddressingMode::ZeroPageX, 2, 4};
-    instruction_table[0x76] = {"ROR", AddressingMode::ZeroPageX, 2, 6};
-    instruction_table[0x78] = {"SEI", AddressingMode::Immediate, 1, 2};
-    instruction_table[0x79] = {"ADC", AddressingMode::AbsoluteY, 3, 4, true};
-    instruction_table[0x7D] = {"ADC", AddressingMode::AbsoluteX, 3, 4, true};
-    instruction_table[0x7E] = {"ROR", AddressingMode::AbsoluteX, 3, 7};
+    instruction_table[0x70] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { BVS(value); }), AddressingMode::Immediate, 2, 2
+    };
+    instruction_table[0x71] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { ADC(value); }), AddressingMode::IndirectIndexed, 2, 5, true
+    };
+    instruction_table[0x75] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { ADC(value); }), AddressingMode::ZeroPageX, 2, 4
+    };
+    instruction_table[0x76] = {
+        std::function<void(uint16_t)>([this](uint16_t address) { ROR_Memory(address); }), AddressingMode::ZeroPageX, 2,
+        6
+    };
+    instruction_table[0x78] = {std::function<void()>([this]() { SEI(); }), AddressingMode::Immediate, 1, 2};
+    instruction_table[0x79] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { ADC(value); }), AddressingMode::AbsoluteY, 3, 4, true
+    };
+    instruction_table[0x7D] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { ADC(value); }), AddressingMode::AbsoluteX, 3, 4, true
+    };
+    instruction_table[0x7E] = {
+        std::function<void(uint16_t)>([this](uint16_t address) { ROR_Memory(address); }), AddressingMode::AbsoluteX, 3,
+        7
+    };
 
-    instruction_table[0x81] = {"STA", AddressingMode::IndexedIndirect, 2, 6};
-    instruction_table[0x84] = {"STY", AddressingMode::ZeroPage, 2, 3};
-    instruction_table[0x85] = {"STA", AddressingMode::ZeroPage, 2, 3};
-    instruction_table[0x86] = {"STX", AddressingMode::ZeroPage, 2, 3};
-    instruction_table[0x88] = {"DEY", AddressingMode::Immediate, 1, 2};
-    instruction_table[0x8A] = {"TXA", AddressingMode::Immediate, 1, 2};
-    instruction_table[0x8C] = {"STY", AddressingMode::Absolute, 3, 4};
-    instruction_table[0x8D] = {"STA", AddressingMode::Absolute, 3, 4};
-    instruction_table[0x8E] = {"STX", AddressingMode::Absolute, 3, 4};
+    instruction_table[0x81] = {
+        std::function<void(uint16_t)>([this](uint16_t address) { STA(address); }), AddressingMode::IndexedIndirect, 2, 6
+    };
+    instruction_table[0x84] = {
+        std::function<void(uint16_t)>([this](uint16_t address) { STY(address); }), AddressingMode::ZeroPage, 2, 3
+    };
+    instruction_table[0x85] = {
+        std::function<void(uint16_t)>([this](uint16_t address) { STA(address); }), AddressingMode::ZeroPage, 2, 3
+    };
+    instruction_table[0x86] = {
+        std::function<void(uint16_t)>([this](uint16_t address) { STX(address); }), AddressingMode::ZeroPage, 2, 3
+    };
+    instruction_table[0x88] = {std::function<void()>([this]() { DEY(); }), AddressingMode::Immediate, 1, 2};
+    instruction_table[0x8A] = {std::function<void()>([this]() { TXA(); }), AddressingMode::Immediate, 1, 2};
+    instruction_table[0x8C] = {
+        std::function<void(uint16_t)>([this](uint16_t address) { STY(address); }), AddressingMode::Absolute, 3, 4
+    };
+    instruction_table[0x8D] = {
+        std::function<void(uint16_t)>([this](uint16_t address) { STA(address); }), AddressingMode::Absolute, 3, 4
+    };
+    instruction_table[0x8E] = {
+        std::function<void(uint16_t)>([this](uint16_t address) { STX(address); }), AddressingMode::Absolute, 3, 4
+    };
 
-    instruction_table[0x90] = {"BCC", AddressingMode::Immediate, 2, 2}; // Relative
-    instruction_table[0x91] = {"STA", AddressingMode::IndirectIndexed, 2, 6};
-    instruction_table[0x94] = {"STY", AddressingMode::ZeroPageX, 2, 4};
-    instruction_table[0x95] = {"STA", AddressingMode::ZeroPageX, 2, 4};
-    instruction_table[0x96] = {"STX", AddressingMode::ZeroPageY, 2, 4};
-    instruction_table[0x98] = {"TYA", AddressingMode::Immediate, 1, 2};
-    instruction_table[0x99] = {"STA", AddressingMode::AbsoluteY, 3, 5};
-    instruction_table[0x9A] = {"TXS", AddressingMode::Immediate, 1, 2};
-    instruction_table[0x9D] = {"STA", AddressingMode::AbsoluteX, 3, 5};
+    instruction_table[0x90] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { BCC(value); }), AddressingMode::Immediate, 2, 2
+    };
+    instruction_table[0x91] = {
+        std::function<void(uint16_t)>([this](uint16_t address) { STA(address); }), AddressingMode::IndirectIndexed, 2, 6
+    };
+    instruction_table[0x94] = {
+        std::function<void(uint16_t)>([this](uint16_t address) { STY(address); }), AddressingMode::ZeroPageX, 2, 4
+    };
+    instruction_table[0x95] = {
+        std::function<void(uint16_t)>([this](uint16_t address) { STA(address); }), AddressingMode::ZeroPageX, 2, 4
+    };
+    instruction_table[0x96] = {
+        std::function<void(uint16_t)>([this](uint16_t address) { STX(address); }), AddressingMode::ZeroPageY, 2, 4
+    };
+    instruction_table[0x98] = {std::function<void()>([this]() { TYA(); }), AddressingMode::Immediate, 1, 2};
+    instruction_table[0x99] = {
+        std::function<void(uint16_t)>([this](uint16_t address) { STA(address); }), AddressingMode::AbsoluteY, 3, 5
+    };
+    instruction_table[0x9A] = {std::function<void()>([this]() { TXS(); }), AddressingMode::Immediate, 1, 2};
+    instruction_table[0x9D] = {
+        std::function<void(uint16_t)>([this](uint16_t address) { STA(address); }), AddressingMode::AbsoluteX, 3, 5
+    };
 
-    instruction_table[0xA0] = {"LDY", AddressingMode::Immediate, 2, 2};
-    instruction_table[0xA1] = {"LDA", AddressingMode::IndexedIndirect, 2, 6};
-    instruction_table[0xA2] = {"LDX", AddressingMode::Immediate, 2, 2};
-    instruction_table[0xA4] = {"LDY", AddressingMode::ZeroPage, 2, 3};
-    instruction_table[0xA5] = {"LDA", AddressingMode::ZeroPage, 2, 3};
-    instruction_table[0xA6] = {"LDX", AddressingMode::ZeroPage, 2, 3};
-    instruction_table[0xA8] = {"TAY", AddressingMode::Immediate, 1, 2};
-    instruction_table[0xA9] = {"LDA", AddressingMode::Immediate, 2, 2};
-    instruction_table[0xAA] = {"TAX", AddressingMode::Immediate, 1, 2};
-    instruction_table[0xAC] = {"LDY", AddressingMode::Absolute, 3, 4};
-    instruction_table[0xAD] = {"LDA", AddressingMode::Absolute, 3, 4};
-    instruction_table[0xAE] = {"LDX", AddressingMode::Absolute, 3, 4};
+    instruction_table[0xA0] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { LDY(value); }), AddressingMode::Immediate, 2, 2
+    };
+    instruction_table[0xA1] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { LDA(value); }), AddressingMode::IndexedIndirect, 2, 6
+    };
+    instruction_table[0xA2] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { LDX(value); }), AddressingMode::Immediate, 2, 2
+    };
+    instruction_table[0xA4] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { LDY(value); }), AddressingMode::ZeroPage, 2, 3
+    };
+    instruction_table[0xA5] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { LDA(value); }), AddressingMode::ZeroPage, 2, 3
+    };
+    instruction_table[0xA6] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { LDX(value); }), AddressingMode::ZeroPage, 2, 3
+    };
+    instruction_table[0xA8] = {std::function<void()>([this]() { TAY(); }), AddressingMode::Immediate, 1, 2};
+    instruction_table[0xA9] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { LDA(value); }), AddressingMode::Immediate, 2, 2
+    };
+    instruction_table[0xAA] = {std::function<void()>([this]() { TAX(); }), AddressingMode::Immediate, 1, 2};
+    instruction_table[0xAC] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { LDY(value); }), AddressingMode::Absolute, 3, 4
+    };
+    instruction_table[0xAD] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { LDA(value); }), AddressingMode::Absolute, 3, 4
+    };
+    instruction_table[0xAE] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { LDX(value); }), AddressingMode::Absolute, 3, 4
+    };
 
-    instruction_table[0xB0] = {"BCS", AddressingMode::Immediate, 2, 2}; // Relative
-    instruction_table[0xB1] = {"LDA", AddressingMode::IndirectIndexed, 2, 5, true};
-    instruction_table[0xB4] = {"LDY", AddressingMode::ZeroPageX, 2, 4};
-    instruction_table[0xB5] = {"LDA", AddressingMode::ZeroPageX, 2, 4};
-    instruction_table[0xB6] = {"LDX", AddressingMode::ZeroPageY, 2, 4};
-    instruction_table[0xB8] = {"CLV", AddressingMode::Immediate, 1, 2};
-    instruction_table[0xB9] = {"LDA", AddressingMode::AbsoluteY, 3, 4, true};
-    instruction_table[0xBA] = {"TSX", AddressingMode::Immediate, 1, 2};
-    instruction_table[0xBC] = {"LDY", AddressingMode::AbsoluteX, 3, 4, true};
-    instruction_table[0xBD] = {"LDA", AddressingMode::AbsoluteX, 3, 4, true};
-    instruction_table[0xBE] = {"LDX", AddressingMode::AbsoluteY, 3, 4, true};
+    instruction_table[0xB0] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { BCS(value); }), AddressingMode::Immediate, 2, 2
+    };
+    instruction_table[0xB1] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { LDA(value); }), AddressingMode::IndirectIndexed, 2, 5, true
+    };
+    instruction_table[0xB4] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { LDY(value); }), AddressingMode::ZeroPageX, 2, 4
+    };
+    instruction_table[0xB5] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { LDA(value); }), AddressingMode::ZeroPageX, 2, 4
+    };
+    instruction_table[0xB6] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { LDX(value); }), AddressingMode::ZeroPageY, 2, 4
+    };
+    instruction_table[0xB8] = {std::function<void()>([this]() { CLV(); }), AddressingMode::Immediate, 1, 2};
+    instruction_table[0xB9] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { LDA(value); }), AddressingMode::AbsoluteY, 3, 4, true
+    };
+    instruction_table[0xBA] = {std::function<void()>([this]() { TSX(); }), AddressingMode::Immediate, 1, 2};
+    instruction_table[0xBC] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { LDY(value); }), AddressingMode::AbsoluteX, 3, 4, true
+    };
+    instruction_table[0xBD] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { LDA(value); }), AddressingMode::AbsoluteX, 3, 4, true
+    };
+    instruction_table[0xBE] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { LDX(value); }), AddressingMode::AbsoluteY, 3, 4, true
+    };
 
-    instruction_table[0xC0] = {"CPY", AddressingMode::Immediate, 2, 2};
-    instruction_table[0xC1] = {"CMP", AddressingMode::IndexedIndirect, 2, 6};
-    instruction_table[0xC4] = {"CPY", AddressingMode::ZeroPage, 2, 3};
-    instruction_table[0xC5] = {"CMP", AddressingMode::ZeroPage, 2, 3};
-    instruction_table[0xC6] = {"DEC", AddressingMode::ZeroPage, 2, 5};
-    instruction_table[0xC8] = {"INY", AddressingMode::Immediate, 1, 2};
-    instruction_table[0xC9] = {"CMP", AddressingMode::Immediate, 2, 2};
-    instruction_table[0xCA] = {"DEX", AddressingMode::Immediate, 1, 2};
-    instruction_table[0xCC] = {"CPY", AddressingMode::Absolute, 3, 4};
-    instruction_table[0xCD] = {"CMP", AddressingMode::Absolute, 3, 4};
-    instruction_table[0xCE] = {"DEC", AddressingMode::Absolute, 3, 6};
+    instruction_table[0xC0] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { CPY(value); }), AddressingMode::Immediate, 2, 2
+    };
+    instruction_table[0xC1] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { CMP(value); }), AddressingMode::IndexedIndirect, 2, 6
+    };
+    instruction_table[0xC4] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { CPY(value); }), AddressingMode::ZeroPage, 2, 3
+    };
+    instruction_table[0xC5] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { CMP(value); }), AddressingMode::ZeroPage, 2, 3
+    };
+    instruction_table[0xC6] = {
+        std::function<void(uint16_t)>([this](uint16_t address) { DEC(address); }), AddressingMode::ZeroPage, 2, 5
+    };
+    instruction_table[0xC8] = {std::function<void()>([this]() { INY(); }), AddressingMode::Immediate, 1, 2};
+    instruction_table[0xC9] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { CMP(value); }), AddressingMode::Immediate, 2, 2
+    };
+    instruction_table[0xCA] = {std::function<void()>([this]() { DEX(); }), AddressingMode::Immediate, 1, 2};
+    instruction_table[0xCC] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { CPY(value); }), AddressingMode::Absolute, 3, 4
+    };
+    instruction_table[0xCD] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { CMP(value); }), AddressingMode::Absolute, 3, 4
+    };
+    instruction_table[0xCE] = {
+        std::function<void(uint16_t)>([this](uint16_t address) { DEC(address); }), AddressingMode::Absolute, 3, 6
+    };
 
-    instruction_table[0xD0] = {"BNE", AddressingMode::Immediate, 2, 2}; // Relative
-    instruction_table[0xD1] = {"CMP", AddressingMode::IndirectIndexed, 2, 5, true};
-    instruction_table[0xD5] = {"CMP", AddressingMode::ZeroPageX, 2, 4};
-    instruction_table[0xD6] = {"DEC", AddressingMode::ZeroPageX, 2, 6};
-    instruction_table[0xD8] = {"CLD", AddressingMode::Immediate, 1, 2};
-    instruction_table[0xD9] = {"CMP", AddressingMode::AbsoluteY, 3, 4, true};
-    instruction_table[0xDD] = {"CMP", AddressingMode::AbsoluteX, 3, 4, true};
-    instruction_table[0xDE] = {"DEC", AddressingMode::AbsoluteX, 3, 7};
+    instruction_table[0xD0] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { BNE(value); }), AddressingMode::Immediate, 2, 2
+    };
+    instruction_table[0xD1] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { CMP(value); }), AddressingMode::IndirectIndexed, 2, 5, true
+    };
+    instruction_table[0xD5] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { CMP(value); }), AddressingMode::ZeroPageX, 2, 4
+    };
+    instruction_table[0xD6] = {
+        std::function<void(uint16_t)>([this](uint16_t address) { DEC(address); }), AddressingMode::ZeroPageX, 2, 6
+    };
+    instruction_table[0xD8] = {std::function<void()>([this]() { CLD(); }), AddressingMode::Immediate, 1, 2};
+    instruction_table[0xD9] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { CMP(value); }), AddressingMode::AbsoluteY, 3, 4, true
+    };
+    instruction_table[0xDD] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { CMP(value); }), AddressingMode::AbsoluteX, 3, 4, true
+    };
+    instruction_table[0xDE] = {
+        std::function<void(uint16_t)>([this](uint16_t address) { DEC(address); }), AddressingMode::AbsoluteX, 3, 7
+    };
 
-    instruction_table[0xE0] = {"CPX", AddressingMode::Immediate, 2, 2};
-    instruction_table[0xE1] = {"SBC", AddressingMode::IndexedIndirect, 2, 6};
-    instruction_table[0xE4] = {"CPX", AddressingMode::ZeroPage, 2, 3};
-    instruction_table[0xE5] = {"SBC", AddressingMode::ZeroPage, 2, 3};
-    instruction_table[0xE6] = {"INC", AddressingMode::ZeroPage, 2, 5};
-    instruction_table[0xE8] = {"INX", AddressingMode::Immediate, 1, 2};
-    instruction_table[0xE9] = {"SBC", AddressingMode::Immediate, 2, 2};
-    instruction_table[0xEA] = {"NOP", AddressingMode::Immediate, 1, 2};
-    instruction_table[0xEC] = {"CPX", AddressingMode::Absolute, 3, 4};
-    instruction_table[0xED] = {"SBC", AddressingMode::Absolute, 3, 4};
-    instruction_table[0xEE] = {"INC", AddressingMode::Absolute, 3, 6};
+    instruction_table[0xE0] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { CPX(value); }), AddressingMode::Immediate, 2, 2
+    };
+    instruction_table[0xE1] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { SBC(value); }), AddressingMode::IndexedIndirect, 2, 6
+    };
+    instruction_table[0xE4] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { CPX(value); }), AddressingMode::ZeroPage, 2, 3
+    };
+    instruction_table[0xE5] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { SBC(value); }), AddressingMode::ZeroPage, 2, 3
+    };
+    instruction_table[0xE6] = {
+        std::function<void(uint16_t)>([this](uint16_t address) { INC(address); }), AddressingMode::ZeroPage, 2, 5
+    };
+    instruction_table[0xE8] = {std::function<void()>([this]() { INX(); }), AddressingMode::Immediate, 1, 2};
+    instruction_table[0xE9] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { SBC(value); }), AddressingMode::Immediate, 2, 2
+    };
+    instruction_table[0xEA] = {std::function<void()>([this]() { NOP(); }), AddressingMode::Immediate, 1, 2};
+    instruction_table[0xEC] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { CPX(value); }), AddressingMode::Absolute, 3, 4
+    };
+    instruction_table[0xED] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { SBC(value); }), AddressingMode::Absolute, 3, 4
+    };
+    instruction_table[0xEE] = {
+        std::function<void(uint16_t)>([this](uint16_t address) { INC(address); }), AddressingMode::Absolute, 3, 6
+    };
 
-    instruction_table[0xF0] = {"BEQ", AddressingMode::Immediate, 2, 2}; // Relative
-    instruction_table[0xF1] = {"SBC", AddressingMode::IndirectIndexed, 2, 5, true};
-    instruction_table[0xF5] = {"SBC", AddressingMode::ZeroPageX, 2, 4};
-    instruction_table[0xF6] = {"INC", AddressingMode::ZeroPageX, 2, 6};
-    instruction_table[0xF8] = {"SED", AddressingMode::Immediate, 1, 2};
-    instruction_table[0xF9] = {"SBC", AddressingMode::AbsoluteY, 3, 4, true};
-    instruction_table[0xFD] = {"SBC", AddressingMode::AbsoluteX, 3, 4, true};
-    instruction_table[0xFE] = {"INC", AddressingMode::AbsoluteX, 3, 7};
+    instruction_table[0xF0] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { BEQ(value); }), AddressingMode::Immediate, 2, 2
+    };
+    instruction_table[0xF1] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { SBC(value); }), AddressingMode::IndirectIndexed, 2, 5, true
+    };
+    instruction_table[0xF5] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { SBC(value); }), AddressingMode::ZeroPageX, 2, 4
+    };
+    instruction_table[0xF6] = {
+        std::function<void(uint16_t)>([this](uint16_t address) { INC(address); }), AddressingMode::ZeroPageX, 2, 6
+    };
+    instruction_table[0xF8] = {std::function<void()>([this]() { SED(); }), AddressingMode::Immediate, 1, 2};
+    instruction_table[0xF9] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { SBC(value); }), AddressingMode::AbsoluteY, 3, 4, true
+    };
+    instruction_table[0xFD] = {
+        std::function<void(uint8_t)>([this](uint8_t value) { SBC(value); }), AddressingMode::AbsoluteX, 3, 4, true
+    };
+    instruction_table[0xFE] = {
+        std::function<void(uint16_t)>([this](uint16_t address) { INC(address); }), AddressingMode::AbsoluteX, 3, 7
+    };
 }
 
 void Cpu::setNegativeFlag(bool value) {

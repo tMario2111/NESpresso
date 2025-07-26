@@ -2,12 +2,13 @@
 
 #include <array>
 #include <cstdint>
+#include <functional>
 #include <string>
+#include <variant>
 
 #include "Memory.hpp"
 
-class Cpu
-{
+class Cpu {
 public:
     Cpu(const Cpu &) = delete;
 
@@ -15,8 +16,9 @@ public:
 
     static Cpu &instance();
 
-    struct Registers
-    {
+    uint8_t executeInstruction();
+
+    struct Registers {
         uint8_t a;
         uint8_t x, y;
         uint16_t pc;
@@ -27,8 +29,7 @@ public:
         uint8_t p;
     } registers{};
 
-    enum class AddressingMode
-    {
+    enum class AddressingMode {
         Immediate,
         ZeroPage,
         ZeroPageX,
@@ -41,14 +42,18 @@ public:
         IndirectIndexed
     };
 
-    struct Instruction
-    {
-        std::string mnemonic;
+    struct Instruction {
+        // std::string mnemonic;
+        std::variant<
+            std::function<void(uint8_t)>,
+            std::function<void(uint16_t)>,
+            std::function<void()>
+        > execute;
         AddressingMode mode;
         uint8_t bytes;
         uint8_t cycles;
         bool page_crossed;
-    } instruction{};
+    };
 
     std::array<Instruction, 256> instruction_table;
 
