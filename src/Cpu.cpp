@@ -1,15 +1,12 @@
 #include "Cpu.hpp"
-
 #include "Memory.hpp"
 
-Cpu &Cpu::instance()
-{
+Cpu &Cpu::instance() {
     static Cpu cpu;
     return cpu;
 }
 
-void Cpu::initInstructionTable()
-{
+void Cpu::initInstructionTable() {
     // These are only the OFFICIAL 6502 instructions.
     instruction_table[0x00] = {"BRK", AddressingMode::Immediate, 1, 7};
     instruction_table[0x01] = {"ORA", AddressingMode::IndexedIndirect, 2, 6};
@@ -27,7 +24,7 @@ void Cpu::initInstructionTable()
     instruction_table[0x16] = {"ASL", AddressingMode::ZeroPageX, 2, 6};
     instruction_table[0x18] = {"CLC", AddressingMode::Immediate, 1, 2};
     instruction_table[0x19] = {"ORA", AddressingMode::AbsoluteY, 3, 4, true};
-    instruction_table[0x1D] = {"ORA", AddressingMode::AbsoluteX, 3, 4, 1};
+    instruction_table[0x1D] = {"ORA", AddressingMode::AbsoluteX, 3, 4, true};
     instruction_table[0x1E] = {"ASL", AddressingMode::AbsoluteX, 3, 7};
 
     instruction_table[0x20] = {"JSR", AddressingMode::Absolute, 3, 6};
@@ -43,12 +40,12 @@ void Cpu::initInstructionTable()
     instruction_table[0x2E] = {"ROL", AddressingMode::Absolute, 3, 6};
 
     instruction_table[0x30] = {"BMI", AddressingMode::Immediate, 2, 2}; // Relative
-    instruction_table[0x31] = {"AND", AddressingMode::IndirectIndexed, 2, 5, 1};
+    instruction_table[0x31] = {"AND", AddressingMode::IndirectIndexed, 2, 5, true};
     instruction_table[0x35] = {"AND", AddressingMode::ZeroPageX, 2, 4};
     instruction_table[0x36] = {"ROL", AddressingMode::ZeroPageX, 2, 6};
     instruction_table[0x38] = {"SEC", AddressingMode::Immediate, 1, 2};
-    instruction_table[0x39] = {"AND", AddressingMode::AbsoluteY, 3, 4, 1};
-    instruction_table[0x3D] = {"AND", AddressingMode::AbsoluteX, 3, 4, 1};
+    instruction_table[0x39] = {"AND", AddressingMode::AbsoluteY, 3, 4, true};
+    instruction_table[0x3D] = {"AND", AddressingMode::AbsoluteX, 3, 4, true};
     instruction_table[0x3E] = {"ROL", AddressingMode::AbsoluteX, 3, 7};
 
     instruction_table[0x40] = {"RTI", AddressingMode::Immediate, 1, 6};
@@ -63,12 +60,12 @@ void Cpu::initInstructionTable()
     instruction_table[0x4E] = {"LSR", AddressingMode::Absolute, 3, 6};
 
     instruction_table[0x50] = {"BVC", AddressingMode::Immediate, 2, 2}; // Relative
-    instruction_table[0x51] = {"EOR", AddressingMode::IndirectIndexed, 2, 5, 1};
+    instruction_table[0x51] = {"EOR", AddressingMode::IndirectIndexed, 2, 5, true};
     instruction_table[0x55] = {"EOR", AddressingMode::ZeroPageX, 2, 4};
     instruction_table[0x56] = {"LSR", AddressingMode::ZeroPageX, 2, 6};
     instruction_table[0x58] = {"CLI", AddressingMode::Immediate, 1, 2};
-    instruction_table[0x59] = {"EOR", AddressingMode::AbsoluteY, 3, 4, 1};
-    instruction_table[0x5D] = {"EOR", AddressingMode::AbsoluteX, 3, 4, 1};
+    instruction_table[0x59] = {"EOR", AddressingMode::AbsoluteY, 3, 4, true};
+    instruction_table[0x5D] = {"EOR", AddressingMode::AbsoluteX, 3, 4, true};
     instruction_table[0x5E] = {"LSR", AddressingMode::AbsoluteX, 3, 7};
 
     instruction_table[0x60] = {"RTS", AddressingMode::Immediate, 1, 6};
@@ -83,12 +80,12 @@ void Cpu::initInstructionTable()
     instruction_table[0x6E] = {"ROR", AddressingMode::Absolute, 3, 6};
 
     instruction_table[0x70] = {"BVS", AddressingMode::Immediate, 2, 2}; // Relative
-    instruction_table[0x71] = {"ADC", AddressingMode::IndirectIndexed, 2, 5, 1};
+    instruction_table[0x71] = {"ADC", AddressingMode::IndirectIndexed, 2, 5, true};
     instruction_table[0x75] = {"ADC", AddressingMode::ZeroPageX, 2, 4};
     instruction_table[0x76] = {"ROR", AddressingMode::ZeroPageX, 2, 6};
     instruction_table[0x78] = {"SEI", AddressingMode::Immediate, 1, 2};
-    instruction_table[0x79] = {"ADC", AddressingMode::AbsoluteY, 3, 4, 1};
-    instruction_table[0x7D] = {"ADC", AddressingMode::AbsoluteX, 3, 4, 1};
+    instruction_table[0x79] = {"ADC", AddressingMode::AbsoluteY, 3, 4, true};
+    instruction_table[0x7D] = {"ADC", AddressingMode::AbsoluteX, 3, 4, true};
     instruction_table[0x7E] = {"ROR", AddressingMode::AbsoluteX, 3, 7};
 
     instruction_table[0x81] = {"STA", AddressingMode::IndexedIndirect, 2, 6};
@@ -125,16 +122,16 @@ void Cpu::initInstructionTable()
     instruction_table[0xAE] = {"LDX", AddressingMode::Absolute, 3, 4};
 
     instruction_table[0xB0] = {"BCS", AddressingMode::Immediate, 2, 2}; // Relative
-    instruction_table[0xB1] = {"LDA", AddressingMode::IndirectIndexed, 2, 5, 1};
+    instruction_table[0xB1] = {"LDA", AddressingMode::IndirectIndexed, 2, 5, true};
     instruction_table[0xB4] = {"LDY", AddressingMode::ZeroPageX, 2, 4};
     instruction_table[0xB5] = {"LDA", AddressingMode::ZeroPageX, 2, 4};
     instruction_table[0xB6] = {"LDX", AddressingMode::ZeroPageY, 2, 4};
     instruction_table[0xB8] = {"CLV", AddressingMode::Immediate, 1, 2};
-    instruction_table[0xB9] = {"LDA", AddressingMode::AbsoluteY, 3, 4, 1};
+    instruction_table[0xB9] = {"LDA", AddressingMode::AbsoluteY, 3, 4, true};
     instruction_table[0xBA] = {"TSX", AddressingMode::Immediate, 1, 2};
-    instruction_table[0xBC] = {"LDY", AddressingMode::AbsoluteX, 3, 4, 1};
-    instruction_table[0xBD] = {"LDA", AddressingMode::AbsoluteX, 3, 4, 1};
-    instruction_table[0xBE] = {"LDX", AddressingMode::AbsoluteY, 3, 4, 1};
+    instruction_table[0xBC] = {"LDY", AddressingMode::AbsoluteX, 3, 4, true};
+    instruction_table[0xBD] = {"LDA", AddressingMode::AbsoluteX, 3, 4, true};
+    instruction_table[0xBE] = {"LDX", AddressingMode::AbsoluteY, 3, 4, true};
 
     instruction_table[0xC0] = {"CPY", AddressingMode::Immediate, 2, 2};
     instruction_table[0xC1] = {"CMP", AddressingMode::IndexedIndirect, 2, 6};
@@ -149,12 +146,12 @@ void Cpu::initInstructionTable()
     instruction_table[0xCE] = {"DEC", AddressingMode::Absolute, 3, 6};
 
     instruction_table[0xD0] = {"BNE", AddressingMode::Immediate, 2, 2}; // Relative
-    instruction_table[0xD1] = {"CMP", AddressingMode::IndirectIndexed, 2, 5, 1};
+    instruction_table[0xD1] = {"CMP", AddressingMode::IndirectIndexed, 2, 5, true};
     instruction_table[0xD5] = {"CMP", AddressingMode::ZeroPageX, 2, 4};
     instruction_table[0xD6] = {"DEC", AddressingMode::ZeroPageX, 2, 6};
     instruction_table[0xD8] = {"CLD", AddressingMode::Immediate, 1, 2};
-    instruction_table[0xD9] = {"CMP", AddressingMode::AbsoluteY, 3, 4, 1};
-    instruction_table[0xDD] = {"CMP", AddressingMode::AbsoluteX, 3, 4, 1};
+    instruction_table[0xD9] = {"CMP", AddressingMode::AbsoluteY, 3, 4, true};
+    instruction_table[0xDD] = {"CMP", AddressingMode::AbsoluteX, 3, 4, true};
     instruction_table[0xDE] = {"DEC", AddressingMode::AbsoluteX, 3, 7};
 
     instruction_table[0xE0] = {"CPX", AddressingMode::Immediate, 2, 2};
@@ -170,77 +167,68 @@ void Cpu::initInstructionTable()
     instruction_table[0xEE] = {"INC", AddressingMode::Absolute, 3, 6};
 
     instruction_table[0xF0] = {"BEQ", AddressingMode::Immediate, 2, 2}; // Relative
-    instruction_table[0xF1] = {"SBC", AddressingMode::IndirectIndexed, 2, 5, 1};
+    instruction_table[0xF1] = {"SBC", AddressingMode::IndirectIndexed, 2, 5, true};
     instruction_table[0xF5] = {"SBC", AddressingMode::ZeroPageX, 2, 4};
     instruction_table[0xF6] = {"INC", AddressingMode::ZeroPageX, 2, 6};
     instruction_table[0xF8] = {"SED", AddressingMode::Immediate, 1, 2};
-    instruction_table[0xF9] = {"SBC", AddressingMode::AbsoluteY, 3, 4, 1};
-    instruction_table[0xFD] = {"SBC", AddressingMode::AbsoluteX, 3, 4, 1};
+    instruction_table[0xF9] = {"SBC", AddressingMode::AbsoluteY, 3, 4, true};
+    instruction_table[0xFD] = {"SBC", AddressingMode::AbsoluteX, 3, 4, true};
     instruction_table[0xFE] = {"INC", AddressingMode::AbsoluteX, 3, 7};
 }
 
-void Cpu::setNegativeFlag(bool value)
-{
+void Cpu::setNegativeFlag(bool value) {
     if (value)
         registers.p |= 0x80; // Set Negative Flag
     else
         registers.p &= ~0x80; // Clear Negative Flag
 }
 
-void Cpu::setZeroFlag(bool value)
-{
+void Cpu::setZeroFlag(bool value) {
     if (value)
         registers.p |= 0x02; // Set Zero Flag
     else
         registers.p &= ~0x02; // Clear Zero Flag
 }
 
-void Cpu::setCarryFlag(bool value)
-{
+void Cpu::setCarryFlag(bool value) {
     if (value)
         registers.p |= 0x01; // Set Carry Flag
     else
         registers.p &= ~0x01; // Clear Carry Flag
 }
 
-void Cpu::setOverflowFlag(bool value)
-{
+void Cpu::setOverflowFlag(bool value) {
     if (value)
         registers.p |= 0x40; // Set Overflow Flag
     else
         registers.p &= ~0x40; // Clear Overflow Flag
 }
 
-void Cpu::setDecimalFlag(bool value)
-{
+void Cpu::setDecimalFlag(bool value) {
     if (value)
         registers.p |= 0x08; // Set Decimal Flag
     else
         registers.p &= ~0x08; // Clear Decimal Flag
 }
 
-void Cpu::setInterruptDisableFlag(bool value)
-{
+void Cpu::setInterruptDisableFlag(bool value) {
     if (value)
         registers.p |= 0x04; // Set Interrupt Disable Flag
     else
         registers.p &= ~0x04; // Clear Interrupt Disable Flag
 }
 
-inline void Cpu::writeMemory(uint16_t address, uint8_t value)
-{
+inline void Cpu::writeMemory(uint16_t address, uint8_t value) {
     memory.ram[address] = value;
 }
 
 
-inline uint8_t Cpu::readMemory(uint16_t uint16)
-{
+inline uint8_t Cpu::readMemory(uint16_t uint16) {
     return memory.ram[uint16];
 }
 
 // All of the official instructions are defined in the functions below:
-void Cpu::ADC(uint8_t value)
-{
+void Cpu::ADC(uint8_t value) {
     uint8_t a = registers.a;
     uint8_t carry = (registers.p & 0x01); // C = bit 0
 
@@ -266,8 +254,7 @@ void Cpu::ADC(uint8_t value)
 }
 
 // AND (self-explanatory)
-void Cpu::AND(uint8_t value)
-{
+void Cpu::AND(uint8_t value) {
     registers.a &= value;
 
     // === Set Flags ===
@@ -280,8 +267,7 @@ void Cpu::AND(uint8_t value)
 }
 
 // Arithmetic Shift Left (ASL) - shifts bits left and sets flags accordingly
-void Cpu::ASL_Accumulator()
-{
+void Cpu::ASL_Accumulator() {
     uint8_t &a = registers.a;
     setCarryFlag((a & 0x80) != 0);
     a <<= 1;
@@ -290,8 +276,7 @@ void Cpu::ASL_Accumulator()
 }
 
 
-void Cpu::ASL_Memory(uint16_t address)
-{
+void Cpu::ASL_Memory(uint16_t address) {
     uint8_t value = readMemory(address);
     setCarryFlag((value & 0x80) != 0);
     value <<= 1;
@@ -301,123 +286,117 @@ void Cpu::ASL_Memory(uint16_t address)
 }
 
 // Branch if Carry Clear (BCC) - branches if the Carry Flag is clear
-void Cpu::BCC(uint8_t value)
-{
+void Cpu::BCC(uint8_t value) {
     // Branch if Carry Clear
-    if (!(registers.p & 0x01))
-    {
+    if (!(registers.p & 0x01)) {
         // Check Carry Flag
         registers.pc += value; // Adjust Program Counter
     }
 }
 
 // Branch if Carry Set (BCS) - branches if the Carry Flag is set
-void Cpu::BCS(uint8_t value)
-{
+void Cpu::BCS(uint8_t value) {
     // Branch if Carry Set
-    if (registers.p & 0x01)
-    {
+    if (registers.p & 0x01) {
         // Check Carry Flag
         registers.pc += value; // Adjust Program Counter
     }
 }
 
-void Cpu::BEQ(uint8_t value)
-{
+void Cpu::BEQ(uint8_t value) {
     // Branch if Equal (Zero Flag is set)
-    if (registers.p & 0x02)
-    {
+    if (registers.p & 0x02) {
         // Check Zero Flag
         registers.pc += value; // Adjust Program Counter
     }
 }
 
-void Cpu::BIT(uint8_t value)
-{
+void Cpu::BIT(uint8_t value) {
     // Bit Test - sets flags based on the value
     setZeroFlag((registers.a & value) == 0);
     setNegativeFlag((value & 0x80) != 0);
     setOverflowFlag((value & 0x40) != 0);
 }
 
-void Cpu::BMI(uint8_t value)
-{
+void Cpu::BMI(uint8_t value) {
     // Branch if Minus (Negative Flag is set)
-    if (registers.p & 0x80)
-    {
+    if (registers.p & 0x80) {
         // Check Negative Flag
         registers.pc += value; // Adjust Program Counter
     }
 }
 
-void Cpu::BNE(uint8_t value)
-{
+void Cpu::BNE(uint8_t value) {
     // Branch if Not Equal (Zero Flag is clear)
-    if (!(registers.p & 0x02))
-    {
+    if (!(registers.p & 0x02)) {
         // Check Zero Flag
         registers.pc += value; // Adjust Program Counter
     }
 }
 
-void Cpu::BPL(uint8_t value)
-{
+void Cpu::BPL(uint8_t value) {
     // Branch if Positive (Negative Flag is clear)
-    if (!(registers.p & 0x80))
-    {
+    if (!(registers.p & 0x80)) {
         // Check Negative Flag
         registers.pc += value; // Adjust Program Counter
     }
 }
 
-// void Cpu::BRK
-// TODO: Mario fa stack
+void Cpu::BRK() {
+    // BRK increments PC by 2 (skip BRK opcode + next byte)
+    registers.pc += 2;
 
-void Cpu::BVC(uint8_t value)
-{
+    // Push PC high byte, then low byte onto stack
+    memory.push16(registers.sp, registers.pc);
+
+    // Push Processor Status with Break flag (bit 4) set
+    uint8_t statusWithBreak = registers.p | 0x10; // Set Break flag bit (B)
+    memory.push8(registers.sp, statusWithBreak);
+
+    // Set Interrupt Disable flag to prevent further IRQs
+    setInterruptDisableFlag(true);
+
+    // Load new PC from IRQ/BRK vector at 0xFFFE/0xFFFF
+    uint16_t newPC = (memory.ram[0xFFFF] << 8) | memory.ram[0xFFFE];
+    registers.pc = newPC;
+}
+
+void Cpu::BVC(uint8_t value) {
     // Branch if Overflow Clear (Overflow Flag is clear)
-    if (!(registers.p & 0x40))
-    {
+    if (!(registers.p & 0x40)) {
         // Check Overflow Flag
         registers.pc += value; // Adjust Program Counter
     }
 }
 
-void Cpu::BVS(uint8_t value)
-{
+void Cpu::BVS(uint8_t value) {
     // Branch if Overflow Set (Overflow Flag is set)
-    if (registers.p & 0x40)
-    {
+    if (registers.p & 0x40) {
         // Check Overflow Flag
         registers.pc += value; // Adjust Program Counter
     }
 }
 
-void Cpu::CLC()
-{
+void Cpu::CLC() {
     // Clear Carry Flag
     setCarryFlag(false);
 }
 
-void Cpu::CLD()
-{
+void Cpu::CLD() {
     // Clear Decimal Flag
     setDecimalFlag(false);
 }
 
-void Cpu::CLI()
-{
+void Cpu::CLI() {
     // Clear Interrupt Disable Flag
     setInterruptDisableFlag(false);
 }
 
-void Cpu::CLV()
-{
+void Cpu::CLV() {
     setOverflowFlag(false);
 }
 
-void Cpu::CMP(uint8_t value)
-{
+void Cpu::CMP(uint8_t value) {
     // Compare - sets flags based on the comparison
     uint8_t a = registers.a;
 
@@ -426,8 +405,7 @@ void Cpu::CMP(uint8_t value)
     setNegativeFlag((a - value) & 0x80);
 }
 
-void Cpu::CPX(uint8_t value)
-{
+void Cpu::CPX(uint8_t value) {
     // Compare X Register
     uint8_t x = registers.x;
 
@@ -436,8 +414,7 @@ void Cpu::CPX(uint8_t value)
     setNegativeFlag((x - value) & 0x80);
 }
 
-void Cpu::CPY(uint8_t value)
-{
+void Cpu::CPY(uint8_t value) {
     // Compare Y Register
     uint8_t y = registers.y;
 
@@ -447,8 +424,7 @@ void Cpu::CPY(uint8_t value)
 }
 
 // Decrement Memory (DEC) - decrements the value at the specified address
-void Cpu::DEC(uint16_t address)
-{
+void Cpu::DEC(uint16_t address) {
     uint8_t value = readMemory(address);
     value--;
     setZeroFlag(value == 0);
@@ -457,8 +433,7 @@ void Cpu::DEC(uint16_t address)
 }
 
 
-void Cpu::DEX()
-{
+void Cpu::DEX() {
     // Decrement X Register
     registers.x--;
 
@@ -471,8 +446,7 @@ void Cpu::DEX()
     setNegativeFlag((registers.x & 0x80) != 0);
 }
 
-void Cpu::DEY()
-{
+void Cpu::DEY() {
     // Decrement Y Register
     registers.y--;
 
@@ -485,8 +459,7 @@ void Cpu::DEY()
     setNegativeFlag((registers.y & 0x80) != 0);
 }
 
-void Cpu::EOR(uint8_t value)
-{
+void Cpu::EOR(uint8_t value) {
     // Exclusive OR - performs bitwise XOR with the accumulator
     registers.a ^= value;
 
@@ -500,8 +473,7 @@ void Cpu::EOR(uint8_t value)
 }
 
 // Increment Memory - increments the value at the specified address
-void Cpu::INC(uint16_t address)
-{
+void Cpu::INC(uint16_t address) {
     uint8_t value = readMemory(address);
     value++;
     setZeroFlag(value == 0);
@@ -510,8 +482,7 @@ void Cpu::INC(uint16_t address)
 }
 
 
-void Cpu::INX()
-{
+void Cpu::INX() {
     // Increment X Register
     registers.x++;
 
@@ -524,8 +495,7 @@ void Cpu::INX()
     setNegativeFlag((registers.x & 0x80) != 0);
 }
 
-void Cpu::INY()
-{
+void Cpu::INY() {
     // Increment Y Register
     registers.y++;
 
@@ -538,20 +508,17 @@ void Cpu::INY()
     setNegativeFlag((registers.y & 0x80) != 0);
 }
 
-void Cpu::JMP(uint16_t address)
-{
+void Cpu::JMP(uint16_t address) {
     // Jump to a specific address
     registers.pc = address;
 }
 
-void Cpu::JSR(const uint16_t address)
-{
+void Cpu::JSR(const uint16_t address) {
     memory.push16(registers.sp, registers.pc + 1);
     registers.pc = address;
 }
 
-void Cpu::LDA(uint8_t value)
-{
+void Cpu::LDA(uint8_t value) {
     // Load Accumulator
     registers.a = value;
 
@@ -564,8 +531,7 @@ void Cpu::LDA(uint8_t value)
     setNegativeFlag((registers.a & 0x80) != 0);
 }
 
-void Cpu::LDX(uint8_t value)
-{
+void Cpu::LDX(uint8_t value) {
     // Load X Register
     registers.x = value;
 
@@ -578,8 +544,7 @@ void Cpu::LDX(uint8_t value)
     setNegativeFlag((registers.x & 0x80) != 0);
 }
 
-void Cpu::LDY(uint8_t value)
-{
+void Cpu::LDY(uint8_t value) {
     // Load Y Register
     registers.y = value;
 
@@ -593,8 +558,7 @@ void Cpu::LDY(uint8_t value)
 }
 
 // Logical Shift Right (LSR) - shifts bits right and sets flags accordingly
-void Cpu::LSR_Accumulator()
-{
+void Cpu::LSR_Accumulator() {
     uint8_t &a = registers.a;
     setCarryFlag(a & 0x01); // Bit 0 pleacă
     a >>= 1;
@@ -602,8 +566,7 @@ void Cpu::LSR_Accumulator()
     setNegativeFlag(false); // LSR setează întotdeauna N = 0
 }
 
-void Cpu::LSR_Memory(uint16_t address)
-{
+void Cpu::LSR_Memory(uint16_t address) {
     uint8_t value = readMemory(address);
     setCarryFlag(value & 0x01);
     value >>= 1;
@@ -613,14 +576,12 @@ void Cpu::LSR_Memory(uint16_t address)
 }
 
 
-void Cpu::NOP()
-{
+void Cpu::NOP() {
     // No Operation - does nothing
     // As useful as me
 }
 
-void Cpu::ORA(uint8_t value)
-{
+void Cpu::ORA(uint8_t value) {
     // Logical OR - performs bitwise OR with the accumulator
     registers.a |= value;
 
@@ -633,32 +594,27 @@ void Cpu::ORA(uint8_t value)
     setNegativeFlag((registers.a & 0x80) != 0);
 }
 
-void Cpu::PHA()
-{
+void Cpu::PHA() {
     memory.push8(registers.sp, registers.a);
 }
 
-// TODO: I have no idea if this is correct (~Mario)
+// repaired / bit 4 (break) is set to 1 when pushed
 // The wiki isn't too helpful
-void Cpu::PHP()
-{
-    memory.push8(registers.sp, registers.p | 0x30);
+void Cpu::PHP() {
+    memory.push8(registers.sp, registers.p | 0x10 | 0x20);
 }
 
-void Cpu::PLA()
-{
+void Cpu::PLA() {
     registers.a = memory.pop8(registers.sp);
 }
 
 // TODO: Again, not too sure (~Mario)
-void Cpu::PLP()
-{
+void Cpu::PLP() {
     registers.p = memory.pop8(registers.sp) | 0x20;
 }
 
 // Rotate Left (ROL) - shifts bits left and wraps the leftmost bit to the right
-void Cpu::ROL_Accumulator()
-{
+void Cpu::ROL_Accumulator() {
     uint8_t &a = registers.a;
     bool oldCarry = (registers.p & 0x01) != 0; // Carry Flag (C)
     setCarryFlag(a & 0x80);
@@ -667,8 +623,7 @@ void Cpu::ROL_Accumulator()
     setNegativeFlag(a & 0x80);
 }
 
-void Cpu::ROL_Memory(uint16_t address)
-{
+void Cpu::ROL_Memory(uint16_t address) {
     uint8_t value = readMemory(address);
     bool oldCarry = (registers.p & 0x01) != 0; // Carry Flag (C)
     setCarryFlag(value & 0x80);
@@ -679,8 +634,7 @@ void Cpu::ROL_Memory(uint16_t address)
 }
 
 // Rotate Right (ROR) - shifts bits right and wraps the rightmost bit to the left
-void Cpu::ROR_Accumulator()
-{
+void Cpu::ROR_Accumulator() {
     uint8_t &a = registers.a;
     bool oldCarry = (registers.p & 0x01) != 0; // Carry Flag (C)
     setCarryFlag(a & 0x01);
@@ -689,8 +643,7 @@ void Cpu::ROR_Accumulator()
     setNegativeFlag(a & 0x80);
 }
 
-void Cpu::ROR_Memory(uint16_t address)
-{
+void Cpu::ROR_Memory(uint16_t address) {
     uint8_t value = readMemory(address);
     bool oldCarry = (registers.p & 0x01) != 0; // Carry Flag (C)
     setCarryFlag(value & 0x01);
@@ -700,20 +653,17 @@ void Cpu::ROR_Memory(uint16_t address)
     writeMemory(address, value);
 }
 
-void Cpu::RTI()
-{
+void Cpu::RTI() {
     registers.p = memory.pop8(registers.sp) | 0x20;
     registers.pc = memory.pop16(registers.sp);
 }
 
-void Cpu::RTS()
-{
+void Cpu::RTS() {
     registers.pc = memory.pop16(registers.sp);
     ++registers.pc;
 }
 
-void Cpu::SBC(uint8_t value)
-{
+void Cpu::SBC(uint8_t value) {
     // Subtract with Carry - subtracts value and Carry Flag from the accumulator
     uint8_t a = registers.a;
     uint8_t carry = ~(registers.p & 0x01); // C = bit 0
@@ -739,44 +689,37 @@ void Cpu::SBC(uint8_t value)
     registers.a = result & 0xFF;
 }
 
-void Cpu::SEC()
-{
+void Cpu::SEC() {
     // Set Carry Flag
     setCarryFlag(true);
 }
 
-void Cpu::SED()
-{
+void Cpu::SED() {
     // Set Decimal Flag
     setDecimalFlag(true);
 }
 
-void Cpu::SEI()
-{
+void Cpu::SEI() {
     // Set Interrupt Disable Flag
     setInterruptDisableFlag(true);
 }
 
-void Cpu::STA(uint16_t address)
-{
+void Cpu::STA(uint16_t address) {
     // Store Accumulator
     writeMemory(address, registers.a);
 }
 
-void Cpu::STX(uint16_t address)
-{
+void Cpu::STX(uint16_t address) {
     // Store X Register
     writeMemory(address, registers.x);
 }
 
-void Cpu::STY(uint16_t address)
-{
+void Cpu::STY(uint16_t address) {
     // Store Y Register
     writeMemory(address, registers.y);
 }
 
-void Cpu::TAX()
-{
+void Cpu::TAX() {
     // Transfer Accumulator to X Register
     registers.x = registers.a;
 
@@ -789,8 +732,7 @@ void Cpu::TAX()
     setNegativeFlag((registers.x & 0x80) != 0);
 }
 
-void Cpu::TAY()
-{
+void Cpu::TAY() {
     // Transfer Accumulator to Y Register
     registers.y = registers.a;
 
@@ -803,8 +745,7 @@ void Cpu::TAY()
     setNegativeFlag((registers.y & 0x80) != 0);
 }
 
-void Cpu::TSX()
-{
+void Cpu::TSX() {
     // Transfer Stack Pointer to X Register
     registers.x = registers.sp;
 
@@ -817,8 +758,7 @@ void Cpu::TSX()
     setNegativeFlag((registers.x & 0x80) != 0);
 }
 
-void Cpu::TXA()
-{
+void Cpu::TXA() {
     // Transfer X Register to Accumulator
     registers.a = registers.x;
 
@@ -831,8 +771,7 @@ void Cpu::TXA()
     setNegativeFlag((registers.a & 0x80) != 0);
 }
 
-void Cpu::TXS()
-{
+void Cpu::TXS() {
     // Transfer X Register to Stack Pointer
     registers.sp = registers.x;
 
@@ -845,8 +784,7 @@ void Cpu::TXS()
     setNegativeFlag((registers.sp & 0x80) != 0);
 }
 
-void Cpu::TYA()
-{
+void Cpu::TYA() {
     // Transfer Y Register to Accumulator
     registers.a = registers.y;
 

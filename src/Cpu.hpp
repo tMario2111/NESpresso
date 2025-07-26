@@ -102,6 +102,8 @@ private:
 
     void BPL(uint8_t value);
 
+    void BRK();
+
     void BVC(uint8_t value);
 
     void BVS(uint8_t value);
