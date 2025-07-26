@@ -21,7 +21,7 @@ public:
     struct Registers {
         uint8_t a;
         uint8_t x, y;
-        uint16_t pc;
+        uint16_t pc = Memory::ROM_BOTTOM;
 
         // sp is initialized to 0xFD on console startup
         uint8_t sp = 0xFD;
@@ -62,7 +62,7 @@ public:
 private:
     Memory &memory = Memory::instance();
 
-    Cpu() = default;
+    Cpu();
 
     ~Cpu() = default;
 

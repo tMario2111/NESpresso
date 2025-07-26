@@ -1,6 +1,11 @@
 #include "Cpu.hpp"
 #include "Memory.hpp"
 
+Cpu::Cpu()
+{
+    this->initInstructionTable();
+}
+
 Cpu &Cpu::instance() {
     static Cpu cpu;
     return cpu;
@@ -637,12 +642,12 @@ void Cpu::setInterruptDisableFlag(bool value) {
 }
 
 inline void Cpu::writeMemory(uint16_t address, uint8_t value) {
-    memory.ram[address] = value;
+    memory.bus[address] = value;
 }
 
 
 inline uint8_t Cpu::readMemory(uint16_t uint16) {
-    return memory.ram[uint16];
+    return memory.bus[uint16];
 }
 
 // All of the official instructions are defined in the functions below:
@@ -775,7 +780,7 @@ void Cpu::BRK() {
     setInterruptDisableFlag(true);
 
     // Load new PC from IRQ/BRK vector at 0xFFFE/0xFFFF
-    uint16_t newPC = (memory.ram[0xFFFF] << 8) | memory.ram[0xFFFE];
+    uint16_t newPC = (memory.bus[0xFFFF] << 8) | memory.bus[0xFFFE];
     registers.pc = newPC;
 }
 
