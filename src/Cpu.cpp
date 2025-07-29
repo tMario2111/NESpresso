@@ -81,7 +81,58 @@ uint8_t Cpu::executeInstruction() {
         case AddressingMode::AbsoluteY: {
             uint16_t base_address = readMemory(registers.pc + 1) | (readMemory(registers.pc + 2) << 8);
             uint16_t effective_address = base_address + registers.y;
-            page_crossed = (base_address & 0xFF00) != (effective_address & 0xFF00);
+
+            std::cout << "AbsoluteY DEBUG: base=0x" << std::hex << base_address
+                      << ", Y=" << (int)registers.y
+                      << ", effective=0x" << effective_address
+                      << ", A=0x" << (int)registers.a << std::endl;
+
+            if (std::holds_alternative<std::function<void(uint16_t)>>(instruction.execute)) {
+                std::get<std::function<void(uint16_t)>>(instruction.execute)(effective_address);
+            } else if (std::holds_alternative<std::function<void(uint8_t)>>(instruction.execute)) {
+                std::get<std::function<void(uint8_t)>>(instruction.execute)(readMemory(effective_address));
+            }
+            break;
+        }
+        case AddressingMode::Indirect: {
+            uint16_t ptr_address = readMemory(registers.pc + 1) | (readMemory(registers.pc + 2) << 8);
+
+            uint16_t address;
+            if ((ptr_address & 0x00FF) == 0x00FF) {
+                // Bug hardware: la limita paginii, high byte se citește de la începutul paginii
+                uint8_t low_byte = readMemory(ptr_address);
+                uint8_t high_byte = readMemory(ptr_address & 0xFF00); // Forțează adresa la xx00
+                address = (high_byte << 8) | low_byte;
+
+                std::cout << "JMP Indirect PAGE BUG: ptr_address=0x" << std::hex << ptr_address
+                        << ", low_byte=0x" << (int) low_byte
+                        << ", high_byte=0x" << (int) high_byte
+                        << ", final_address=0x" << address << std::endl;
+            } else {
+                address = readMemory(ptr_address) | (readMemory(ptr_address + 1) << 8);
+            }
+
+            if (std::holds_alternative<std::function<void(uint16_t)> >(instruction.execute)) {
+                std::get<std::function<void(uint16_t)> >(instruction.execute)(address);
+            }
+            break;
+        }
+        case AddressingMode::IndexedIndirect: {
+            uint8_t zp_addr = readMemory(registers.pc + 1);
+            uint8_t effective_zp = (zp_addr + registers.x) & 0xFF; // Forțează wrap-around pe pagina zero
+
+            // Citim adresa efectivă de la (effective_zp) și (effective_zp + 1)
+            uint8_t low_byte = readMemory(effective_zp);
+            uint8_t high_byte = readMemory((effective_zp + 1) & 0xFF); // Wrap-around în pagina zero
+            uint16_t effective_address = (high_byte << 8) | low_byte;
+
+            // Aici este partea critică pentru debugging:
+            std::cout << "IndexedIndirect: base_addr=0x" << std::hex << (int) zp_addr
+                    << ", X=" << (int) registers.x
+                    << ", effective_zp=0x" << (int) effective_zp
+                    << ", final_address=0x" << effective_address
+                    << ", value=0x" << (int) readMemory(effective_address) << std::endl;
+
             if (std::holds_alternative<std::function<void(uint16_t)> >(instruction.execute)) {
                 std::get<std::function<void(uint16_t)> >(instruction.execute)(effective_address);
             } else if (std::holds_alternative<std::function<void(uint8_t)> >(instruction.execute)) {
@@ -89,32 +140,25 @@ uint8_t Cpu::executeInstruction() {
             }
             break;
         }
-        case AddressingMode::Indirect: {
-            uint16_t ptr_address = readMemory(registers.pc + 1) | (readMemory(registers.pc + 2) << 8);
-            // Emulare bug 6502: la citirea adresei indirecte, dacă byte-ul LSB e la 0xXXFF, HSB se citește de la 0xXX00, nu 0xXY00
-            uint16_t address = readMemory(ptr_address) | (
-                                   readMemory((ptr_address & 0xFF00) | ((ptr_address + 1) & 0xFF)) << 8);
-            if (std::holds_alternative<std::function<void(uint16_t)> >(instruction.execute)) {
-                std::get<std::function<void(uint16_t)> >(instruction.execute)(address);
-            }
-            break;
-        }
-        case AddressingMode::IndexedIndirect: {
-            uint8_t base_addr = readMemory(registers.pc + 1);
-            uint8_t effective_base = base_addr + registers.x; // Wrap-around pe zero-page
-            uint16_t address = readMemory(effective_base) | (readMemory((effective_base + 1) & 0xFF) << 8);
-            if (std::holds_alternative<std::function<void(uint16_t)> >(instruction.execute)) {
-                std::get<std::function<void(uint16_t)> >(instruction.execute)(address);
-            } else if (std::holds_alternative<std::function<void(uint8_t)> >(instruction.execute)) {
-                std::get<std::function<void(uint8_t)> >(instruction.execute)(readMemory(address));
-            }
-            break;
-        }
         case AddressingMode::IndirectIndexed: {
-            uint8_t base_addr = readMemory(registers.pc + 1);
-            uint16_t base_address = readMemory(base_addr) | (readMemory((base_addr + 1) & 0xFF) << 8);
+            uint8_t zp_addr = readMemory(registers.pc + 1);
+
+            // Citim adresa de bază din pagina zero
+            uint8_t low_byte = readMemory(zp_addr);
+            uint8_t high_byte = readMemory((zp_addr + 1) & 0xFF); // Wrap-around în pagina zero
+            uint16_t base_address = (high_byte << 8) | low_byte;
+
+            // Adăugăm Y pentru a obține adresa efectivă
             uint16_t effective_address = base_address + registers.y;
             page_crossed = (base_address & 0xFF00) != (effective_address & 0xFF00);
+
+            // Debugging info
+            std::cout << "IndirectIndexed: zp_addr=0x" << std::hex << (int) zp_addr
+                    << ", base_address=0x" << base_address
+                    << ", Y=" << (int) registers.y
+                    << ", effective_address=0x" << effective_address
+                    << ", value=0x" << (int) readMemory(effective_address) << std::endl;
+
             if (std::holds_alternative<std::function<void(uint16_t)> >(instruction.execute)) {
                 std::get<std::function<void(uint16_t)> >(instruction.execute)(effective_address);
             } else if (std::holds_alternative<std::function<void(uint8_t)> >(instruction.execute)) {
@@ -755,23 +799,26 @@ void Cpu::BPL(uint8_t value) {
 }
 
 void Cpu::BRK() {
-    // BRK increments PC by 2 (skip BRK opcode + next byte)
+    // BRK este o instrucțiune de 2 bytes (opcode + dummy byte)
     registers.pc += 2;
 
-    // Push PC high byte, then low byte onto stack
+    // Push PC pe stivă
     memory.push16(registers.sp, registers.pc);
 
-    // Push Processor Status with Break flag (bit 4) set
-    uint8_t statusWithBreak = registers.p | 0x10; // Set Break flag bit (B)
-    memory.push8(registers.sp, statusWithBreak);
+    // Push status register cu B flag setat
+    memory.push8(registers.sp, registers.p | 0x10);
 
-    // Set Interrupt Disable flag to prevent further IRQs
+    // Set Interrupt Disable flag
     setInterruptDisableFlag(true);
 
-    // Load new PC from IRQ/BRK vector at 0xFFFE/0xFFFF
-    uint16_t newPC = (memory.bus[0xFFFF] << 8) | memory.bus[0xFFFE];
-    registers.pc = newPC;
+    // Load PC from IRQ vector
+    registers.pc = readMemory(0xFFFE) | (readMemory(0xFFFF) << 8);
+
+    std::cout << "BRK executed: Vectors at 0xFFFE=0x" << std::hex << (int)readMemory(0xFFFE)
+              << ", 0xFFFF=0x" << (int)readMemory(0xFFFF)
+              << ", PC set to 0x" << registers.pc << std::endl;
 }
+
 
 void Cpu::BVC(uint8_t value) {
     int8_t offset = static_cast<int8_t>(value); // Convert to signed 8-bit integer
@@ -931,7 +978,7 @@ void Cpu::JMP(uint16_t address) {
 }
 
 void Cpu::JSR(const uint16_t address) {
-    memory.push16(registers.sp, registers.pc + 1);
+    memory.push16(registers.sp, registers.pc + 2);
     registers.pc = address;
 }
 
@@ -1018,7 +1065,7 @@ void Cpu::PHA() {
 // repaired / bit 4 (break) is set to 1 when pushed
 // The wiki isn't too helpful
 void Cpu::PHP() {
-    memory.push8(registers.sp, registers.p | 0x10 | 0x20);
+    memory.push8(registers.sp, registers.p | 0x30); // 0x30 = B flag + bit 5
 }
 
 void Cpu::PLA() {
@@ -1029,7 +1076,7 @@ void Cpu::PLA() {
 
 // TODO: Again, not too sure (~Mario)
 void Cpu::PLP() {
-    registers.p = memory.pop8(registers.sp) | 0x20;
+    registers.p = (memory.pop8(registers.sp) & ~0x10) | 0x20;
 }
 
 // Rotate Left (ROL) - shifts bits left and wraps the leftmost bit to the right
@@ -1073,8 +1120,14 @@ void Cpu::ROR_Memory(uint16_t address) {
 }
 
 void Cpu::RTI() {
-    registers.p = memory.pop8(registers.sp) | 0x20;
+    // Restaurează status register (ignoră B flag)
+    registers.p = (memory.pop8(registers.sp) & ~0x10) | 0x20;
+
+    // Restaurează PC
     registers.pc = memory.pop16(registers.sp);
+
+    std::cout << "RTI executed: PC restored to 0x" << std::hex << registers.pc
+              << ", P=0x" << (int)registers.p << std::endl;
 }
 
 void Cpu::RTS() {

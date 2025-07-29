@@ -2679,6 +2679,34 @@ void testWriteMemory() {
     }
 }
 
+// Pune valori de test în memorie pentru adresările indirecte
+void setupTestMemory() {
+
+
+    Memory& memory = Memory::instance();
+
+    // Pentru IndexedIndirect (zp,X)
+    memory.bus[0x24] = 0x74;      // Low byte al adresei țintă
+    memory.bus[0x25] = 0x20;      // High byte al adresei țintă
+    memory.bus[0x2074] = 0xAB;    // Valoarea așteptată
+
+    // Pentru IndirectIndexed (zp),Y
+    memory.bus[0x86] = 0x28;      // Low byte al adresei de bază
+    memory.bus[0x87] = 0x40;      // High byte al adresei de bază
+    memory.bus[0x4038] = 0xCD;    // Valoarea așteptată (baza + Y)
+
+    // Pentru STA Absolute,Y test
+    // Asigură-te că A are valoarea 0x99 înainte de test
+
+    // Pentru JMP Indirect Page Bug
+    memory.bus[0x02FF] = 0x00;    // Low byte al adresei destinație
+    memory.bus[0x0200] = 0x07;    // High byte al adresei destinație
+
+    // Pentru BRK și RTI
+    memory.bus[0xFFFE] = 0x00;    // Low byte al vectorului IRQ/BRK
+    memory.bus[0xFFFF] = 0x08;    // High byte al vectorului IRQ/BRK -> 0x0800
+}
+
 
 // ================================
 // MAIN FUNCTION - COMPREHENSIVE TEST RUNNER
@@ -2697,8 +2725,11 @@ int main() {
 
     ComprehensiveTestFramework framework;
 
+
     try {
         std::cout << "🚀 Starting comprehensive test suite execution..." << std::endl;
+        Memory& memory = Memory::instance();
+        memory.setupTestData();
 
         // Core instruction tests
         runLoadInstructionTests(framework);

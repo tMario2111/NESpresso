@@ -47,6 +47,31 @@ public:
 
     void loadROM(const std::string &filename);
 
+    void setupTestData() {
+        // Pentru LDA Indexed Indirect (zp,X)
+        // Test calculează: base=0x20, X=4, effective_zp=0x24
+        // Adresa finală va fi citită din 0x24-0x25
+        bus[0x24] = 0x74;  // Low byte of target address
+        bus[0x25] = 0x20;  // High byte of target address -> 0x2074
+        bus[0x2074] = 0xAB; // Expected value at final address
+
+        // Pentru LDA Indirect Indexed (zp),Y
+        // Test calculează: zp_addr=0x86, base_address=0x4028, Y=10
+        // Adresa de bază va fi citită din 0x86-0x87
+        bus[0x86] = 0x28;  // Low byte of base address
+        bus[0x87] = 0x40;  // High byte of base address -> 0x4028
+        bus[0x4038] = 0xCD; // Expected value at (base + Y) = 0x4028 + 10
+
+        // Pentru JMP Indirect Page Bug
+        // ptr_address=0x2ff, trebuie să rezulte în 0x0700 (1792)
+        bus[0x02FF] = 0x00;  // Low byte
+        bus[0x0200] = 0x07;  // High byte (bug: citit de la începutul paginii)
+
+        // Pentru BRK/IRQ vectori
+        bus[0xFFFE] = 0x00;  // Low byte of IRQ vector
+        bus[0xFFFF] = 0x08;  // High byte -> 0x0800 (2048)
+    }
+
 private:
     Memory() = default;
 
