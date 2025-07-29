@@ -81,16 +81,12 @@ uint8_t Cpu::executeInstruction() {
         case AddressingMode::AbsoluteY: {
             uint16_t base_address = readMemory(registers.pc + 1) | (readMemory(registers.pc + 2) << 8);
             uint16_t effective_address = base_address + registers.y;
+            page_crossed = (base_address & 0xFF00) != (effective_address & 0xFF00);
 
-            std::cout << "AbsoluteY DEBUG: base=0x" << std::hex << base_address
-                      << ", Y=" << (int)registers.y
-                      << ", effective=0x" << effective_address
-                      << ", A=0x" << (int)registers.a << std::endl;
-
-            if (std::holds_alternative<std::function<void(uint16_t)>>(instruction.execute)) {
-                std::get<std::function<void(uint16_t)>>(instruction.execute)(effective_address);
-            } else if (std::holds_alternative<std::function<void(uint8_t)>>(instruction.execute)) {
-                std::get<std::function<void(uint8_t)>>(instruction.execute)(readMemory(effective_address));
+            if (std::holds_alternative<std::function<void(uint16_t)> >(instruction.execute)) {
+                std::get<std::function<void(uint16_t)> >(instruction.execute)(effective_address);
+            } else if (std::holds_alternative<std::function<void(uint8_t)> >(instruction.execute)) {
+                std::get<std::function<void(uint8_t)> >(instruction.execute)(readMemory(effective_address));
             }
             break;
         }
@@ -103,11 +99,6 @@ uint8_t Cpu::executeInstruction() {
                 uint8_t low_byte = readMemory(ptr_address);
                 uint8_t high_byte = readMemory(ptr_address & 0xFF00); // Forțează adresa la xx00
                 address = (high_byte << 8) | low_byte;
-
-                std::cout << "JMP Indirect PAGE BUG: ptr_address=0x" << std::hex << ptr_address
-                        << ", low_byte=0x" << (int) low_byte
-                        << ", high_byte=0x" << (int) high_byte
-                        << ", final_address=0x" << address << std::endl;
             } else {
                 address = readMemory(ptr_address) | (readMemory(ptr_address + 1) << 8);
             }
@@ -125,13 +116,6 @@ uint8_t Cpu::executeInstruction() {
             uint8_t low_byte = readMemory(effective_zp);
             uint8_t high_byte = readMemory((effective_zp + 1) & 0xFF); // Wrap-around în pagina zero
             uint16_t effective_address = (high_byte << 8) | low_byte;
-
-            // Aici este partea critică pentru debugging:
-            std::cout << "IndexedIndirect: base_addr=0x" << std::hex << (int) zp_addr
-                    << ", X=" << (int) registers.x
-                    << ", effective_zp=0x" << (int) effective_zp
-                    << ", final_address=0x" << effective_address
-                    << ", value=0x" << (int) readMemory(effective_address) << std::endl;
 
             if (std::holds_alternative<std::function<void(uint16_t)> >(instruction.execute)) {
                 std::get<std::function<void(uint16_t)> >(instruction.execute)(effective_address);
@@ -151,13 +135,6 @@ uint8_t Cpu::executeInstruction() {
             // Adăugăm Y pentru a obține adresa efectivă
             uint16_t effective_address = base_address + registers.y;
             page_crossed = (base_address & 0xFF00) != (effective_address & 0xFF00);
-
-            // Debugging info
-            std::cout << "IndirectIndexed: zp_addr=0x" << std::hex << (int) zp_addr
-                    << ", base_address=0x" << base_address
-                    << ", Y=" << (int) registers.y
-                    << ", effective_address=0x" << effective_address
-                    << ", value=0x" << (int) readMemory(effective_address) << std::endl;
 
             if (std::holds_alternative<std::function<void(uint16_t)> >(instruction.execute)) {
                 std::get<std::function<void(uint16_t)> >(instruction.execute)(effective_address);
@@ -194,7 +171,7 @@ uint8_t Cpu::executeInstruction() {
 
 
 void Cpu::initInstructionTable() {
-    instruction_table[0x00] = {std::function<void()>([this]() { BRK(); }), AddressingMode::Implied, 2, 7};
+    instruction_table[0x00] = {std::function<void()>([this]() { BRK(); }), AddressingMode::Implied, 1, 7};
     instruction_table[0x01] = {
         std::function<void(uint8_t)>([this](uint8_t value) { ORA(value); }), AddressingMode::IndexedIndirect, 2, 6
     };
@@ -657,13 +634,7 @@ void Cpu::setInterruptDisableFlag(bool value) {
 }
 
 void Cpu::writeMemory(uint16_t address, uint8_t value) {
-    std::cout << "🔥 writeMemory(0x" << std::hex << address
-            << ", 0x" << (int) value << ") called!" << std::endl;
     memory.bus[address] = value;
-
-    // Verifică că s-a scris:
-    uint8_t readBack = memory.bus[address];
-    std::cout << "🔥 Wrote 0x" << (int) value << ", read back 0x" << (int) readBack << std::endl;
 }
 
 
@@ -735,29 +706,38 @@ void Cpu::BCC(uint8_t value) {
     // Branch if Carry Clear
     if (!(registers.p & 0x01)) {
         uint16_t old_pc = registers.pc + 2;
-        registers.pc += offset + 2; // Adjust Program Counter
+        registers.pc += offset;
         total_cycles += 1 + ((old_pc & 0xFF00) != (registers.pc & 0xFF00) ? 1 : 0);
+        registers.pc += 2;
+    } else {
+        registers.pc += 2;
     }
 }
 
 // Branch if Carry Set (BCS) - branches if the Carry Flag is set
 void Cpu::BCS(uint8_t value) {
-    int8_t offset = static_cast<int8_t>(value); // Convert to signed 8-bit integer
+    auto offset = static_cast<int8_t>(value); // Convert to signed 8-bit integer
     // Branch if Carry Set
     if (registers.p & 0x01) {
         uint16_t old_pc = registers.pc + 2;
-        registers.pc += offset + 2; // Adjust Program Counter
+        registers.pc += offset;
         total_cycles += 1 + ((old_pc & 0xFF00) != (registers.pc & 0xFF00) ? 1 : 0);
+        registers.pc += 2;
+    } else {
+        registers.pc += 2;
     }
 }
 
 void Cpu::BEQ(uint8_t value) {
-    int8_t offset = static_cast<int8_t>(value); // Convert to signed 8-bit integer
+    auto offset = static_cast<int8_t>(value); // Convert to signed 8-bit integer
     // Branch if Equal (Zero Flag is set)
     if (registers.p & 0x02) {
         uint16_t old_pc = registers.pc + 2;
-        registers.pc += offset + 2; // Adjust Program Counter
+        registers.pc += offset;
         total_cycles += 1 + ((old_pc & 0xFF00) != (registers.pc & 0xFF00) ? 1 : 0);
+        registers.pc += 2;
+    } else {
+        registers.pc += 2;
     }
 }
 
@@ -769,12 +749,15 @@ void Cpu::BIT(uint8_t value) {
 }
 
 void Cpu::BMI(uint8_t value) {
-    int8_t offset = static_cast<int8_t>(value); // Convert to signed 8-bit integer
+    auto offset = static_cast<int8_t>(value); // Convert to signed 8-bit integer
     // Branch if Minus (Negative Flag is set)
     if (registers.p & 0x80) {
         uint16_t old_pc = registers.pc + 2;
-        registers.pc += offset + 2; // Adjust Program Counter
+        registers.pc += offset;
         total_cycles += 1 + ((old_pc & 0xFF00) != (registers.pc & 0xFF00) ? 1 : 0);
+        registers.pc += 2;
+    } else {
+        registers.pc += 2;
     }
 }
 
@@ -783,8 +766,11 @@ void Cpu::BNE(uint8_t value) {
     // Branch if Not Equal (Zero Flag is clear)
     if (!(registers.p & 0x02)) {
         uint16_t old_pc = registers.pc + 2;
-        registers.pc += offset + 2; // Adjust Program Counter
+        registers.pc += offset;
         total_cycles += 1 + ((old_pc & 0xFF00) != (registers.pc & 0xFF00) ? 1 : 0);
+        registers.pc += 2;
+    } else {
+        registers.pc += 2;
     }
 }
 
@@ -793,14 +779,17 @@ void Cpu::BPL(uint8_t value) {
     // Branch if Positive (Negative Flag is clear)
     if (!(registers.p & 0x80)) {
         uint16_t old_pc = registers.pc + 2;
-        registers.pc += offset + 2; // Adjust Program Counter
+        registers.pc += offset;
         total_cycles += 1 + ((old_pc & 0xFF00) != (registers.pc & 0xFF00) ? 1 : 0);
+        registers.pc += 2;
+    } else {
+        registers.pc += 2;
     }
 }
 
 void Cpu::BRK() {
-    // BRK este o instrucțiune de 2 bytes (opcode + dummy byte)
-    registers.pc += 2;
+    // BRK este o instrucțiune de 1 byte, dar incrementează PC cu 2
+    registers.pc++;
 
     // Push PC pe stivă
     memory.push16(registers.sp, registers.pc);
@@ -813,10 +802,6 @@ void Cpu::BRK() {
 
     // Load PC from IRQ vector
     registers.pc = readMemory(0xFFFE) | (readMemory(0xFFFF) << 8);
-
-    std::cout << "BRK executed: Vectors at 0xFFFE=0x" << std::hex << (int)readMemory(0xFFFE)
-              << ", 0xFFFF=0x" << (int)readMemory(0xFFFF)
-              << ", PC set to 0x" << registers.pc << std::endl;
 }
 
 
@@ -825,8 +810,11 @@ void Cpu::BVC(uint8_t value) {
     // Branch if Overflow Clear (Overflow Flag is clear)
     if (!(registers.p & 0x40)) {
         uint16_t old_pc = registers.pc + 2;
-        registers.pc += offset + 2; // Adjust Program Counter
+        registers.pc += offset;
         total_cycles += 1 + ((old_pc & 0xFF00) != (registers.pc & 0xFF00) ? 1 : 0);
+        registers.pc += 2;
+    } else {
+        registers.pc += 2;
     }
 }
 
@@ -835,8 +823,11 @@ void Cpu::BVS(uint8_t value) {
     // Branch if Overflow Set (Overflow Flag is set)
     if (registers.p & 0x40) {
         uint16_t old_pc = registers.pc + 2;
-        registers.pc += offset + 2; // Adjust Program Counter
+        registers.pc += offset;
         total_cycles += 1 + ((old_pc & 0xFF00) != (registers.pc & 0xFF00) ? 1 : 0);
+        registers.pc += 2;
+    } else {
+        registers.pc += 2;
     }
 }
 
@@ -862,28 +853,31 @@ void Cpu::CLV() {
 void Cpu::CMP(uint8_t value) {
     // Compare - sets flags based on the comparison
     uint8_t a = registers.a;
+    uint8_t result = a - value;
 
     setCarryFlag(a >= value);
     setZeroFlag(a == value);
-    setNegativeFlag((a - value) & 0x80);
+    setNegativeFlag(result & 0x80);
 }
 
 void Cpu::CPX(uint8_t value) {
     // Compare X Register
     uint8_t x = registers.x;
+    uint8_t result = x - value;
 
     setCarryFlag(x >= value);
     setZeroFlag(x == value);
-    setNegativeFlag((x - value) & 0x80);
+    setNegativeFlag(result & 0x80);
 }
 
 void Cpu::CPY(uint8_t value) {
     // Compare Y Register
     uint8_t y = registers.y;
+    uint8_t result = y - value;
 
     setCarryFlag(y >= value);
     setZeroFlag(y == value);
-    setNegativeFlag((y - value) & 0x80);
+    setNegativeFlag(result & 0x80);
 }
 
 // Decrement Memory (DEC) - decrements the value at the specified address
@@ -937,7 +931,6 @@ void Cpu::EOR(uint8_t value) {
 
 // Increment Memory - increments the value at the specified address
 void Cpu::INC(uint16_t address) {
-    std::cout << "🔥 INC(0x" << std::hex << address << ") called!" << std::endl;
     uint8_t value = readMemory(address);
     value++;
     setZeroFlag(value == 0);
@@ -1125,20 +1118,15 @@ void Cpu::RTI() {
 
     // Restaurează PC
     registers.pc = memory.pop16(registers.sp);
-
-    std::cout << "RTI executed: PC restored to 0x" << std::hex << registers.pc
-              << ", P=0x" << (int)registers.p << std::endl;
 }
 
 void Cpu::RTS() {
-    registers.pc = memory.pop16(registers.sp);
-    ++registers.pc;
+    registers.pc = memory.pop16(registers.sp) + 1;
 }
 
 void Cpu::SBC(uint8_t value) {
     // Subtract with Carry - subtracts value and Carry Flag from the accumulator
     uint8_t a = registers.a;
-    // uint8_t carry = ~(registers.p & 0x01); // C = bit 0
     uint8_t carry = (registers.p & 0x01) ? 0 : 1;
 
     uint16_t result = a - value - carry;
@@ -1155,7 +1143,7 @@ void Cpu::SBC(uint8_t value) {
     setNegativeFlag((result & 0x80) != 0);
 
     // Overflow Flag (V)
-    int overflow = ((a ^ value) & 0x80) != 0 && ((a ^ result) & 0x80) != 0;
+    int overflow = ((a ^ result) & 0x80) && ((a ^ value) & 0x80);
     setOverflowFlag(overflow);
 
     // === Store result ===
@@ -1247,16 +1235,6 @@ void Cpu::TXA() {
 void Cpu::TXS() {
     // Transfer X Register to Stack Pointer
     registers.sp = registers.x;
-
-    // === Set Flags ===
-
-    // Aparent nu are flags?
-    //
-    // // Zero Flag (Z)
-    // setZeroFlag(registers.sp == 0);
-    //
-    // // Negative Flag (N)
-    // setNegativeFlag((registers.sp & 0x80) != 0);
 }
 
 void Cpu::TYA() {
