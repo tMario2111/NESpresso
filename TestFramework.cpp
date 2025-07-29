@@ -2659,11 +2659,34 @@ void runComprehensiveSequenceTests(ComprehensiveTestFramework& framework) {
     }, "Binary to BCD conversion routine");
 }
 
+// Test rapid writeMemory
+void testWriteMemory() {
+    Cpu& cpu = Cpu::instance();
+    Memory& mem = Memory::instance();
+
+    // Test write
+    cpu.writeMemory(0x0050, 0xAB);
+
+    // Verify
+    uint8_t result = mem.bus[0x0050];
+    std::cout << "writeMemory test: wrote 0xAB, read 0x"
+              << std::hex << (int)result << std::endl;
+
+    if (result == 0xAB) {
+        std::cout << "✅ writeMemory WORKS!" << std::endl;
+    } else {
+        std::cout << "❌ writeMemory BROKEN!" << std::endl;
+    }
+}
+
+
 // ================================
 // MAIN FUNCTION - COMPREHENSIVE TEST RUNNER
 // ================================
-
+//
 int main() {
+    testWriteMemory();
+
     std::cout << "🧪 NESpresso CPU Instruction Tests - COMPREHENSIVE EDITION" << std::endl;
     std::cout << "Date: 2025-07-26 16:28:11 UTC" << std::endl;
     std::cout << "User: nicusor43" << std::endl;

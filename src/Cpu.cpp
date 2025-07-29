@@ -1,8 +1,10 @@
 #include "Cpu.hpp"
+
+#include <iostream>
+
 #include "Memory.hpp"
 
-Cpu::Cpu()
-{
+Cpu::Cpu() {
     this->initInstructionTable();
 }
 
@@ -21,108 +23,91 @@ uint8_t Cpu::executeInstruction() {
     switch (instruction.mode) {
         case AddressingMode::Immediate: {
             uint8_t value = readMemory(registers.pc + 1);
-            std::visit([&](auto &&func) {
-                if constexpr (std::is_invocable_v<decltype(func), uint8_t>) {
-                    func(value);
-                }
-            }, instruction.execute);
+            if (std::holds_alternative<std::function<void(uint8_t)> >(instruction.execute)) {
+                std::get<std::function<void(uint8_t)> >(instruction.execute)(value);
+            }
             break;
         }
         case AddressingMode::ZeroPage: {
             uint8_t addr_low = readMemory(registers.pc + 1);
             uint16_t address = addr_low;
-            std::visit([&](auto &&func) {
-                if constexpr (std::is_invocable_v<decltype(func), uint8_t>) {
-                    func(readMemory(address));
-                } else if constexpr (std::is_invocable_v<decltype(func), uint16_t>) {
-                    func(address);
-                }
-            }, instruction.execute);
+            if (std::holds_alternative<std::function<void(uint16_t)> >(instruction.execute)) {
+                std::get<std::function<void(uint16_t)> >(instruction.execute)(address);
+            } else if (std::holds_alternative<std::function<void(uint8_t)> >(instruction.execute)) {
+                std::get<std::function<void(uint8_t)> >(instruction.execute)(readMemory(address));
+            }
             break;
         }
         case AddressingMode::ZeroPageX: {
             uint8_t addr_low = readMemory(registers.pc + 1);
             uint16_t address = (addr_low + registers.x) & 0xFF;
-            std::visit([&](auto &&func) {
-                if constexpr (std::is_invocable_v<decltype(func), uint8_t>) {
-                    func(readMemory(address));
-                } else if constexpr (std::is_invocable_v<decltype(func), uint16_t>) {
-                    func(address);
-                }
-            }, instruction.execute);
+            if (std::holds_alternative<std::function<void(uint16_t)> >(instruction.execute)) {
+                std::get<std::function<void(uint16_t)> >(instruction.execute)(address);
+            } else if (std::holds_alternative<std::function<void(uint8_t)> >(instruction.execute)) {
+                std::get<std::function<void(uint8_t)> >(instruction.execute)(readMemory(address));
+            }
             break;
         }
         case AddressingMode::ZeroPageY: {
             uint8_t addr_low = readMemory(registers.pc + 1);
             uint16_t address = (addr_low + registers.y) & 0xFF;
-            std::visit([&](auto &&func) {
-                if constexpr (std::is_invocable_v<decltype(func), uint8_t>) {
-                    func(readMemory(address)); // Adăugat: pentru instrucțiuni ca LDX care citesc valoarea
-                } else if constexpr (std::is_invocable_v<decltype(func), uint16_t>) {
-                    func(address); // Rămâne: pentru instrucțiuni ca STY care scriu la adresă
-                }
-            }, instruction.execute);
+            if (std::holds_alternative<std::function<void(uint16_t)> >(instruction.execute)) {
+                std::get<std::function<void(uint16_t)> >(instruction.execute)(address);
+            } else if (std::holds_alternative<std::function<void(uint8_t)> >(instruction.execute)) {
+                std::get<std::function<void(uint8_t)> >(instruction.execute)(readMemory(address));
+            }
             break;
         }
         case AddressingMode::Absolute: {
             uint16_t address = readMemory(registers.pc + 1) | (readMemory(registers.pc + 2) << 8);
-            std::visit([&](auto &&func) {
-                if constexpr (std::is_invocable_v<decltype(func), uint8_t>) {
-                    func(readMemory(address));
-                } else if constexpr (std::is_invocable_v<decltype(func), uint16_t>) {
-                    func(address);
-                }
-            }, instruction.execute);
+            if (std::holds_alternative<std::function<void(uint16_t)> >(instruction.execute)) {
+                std::get<std::function<void(uint16_t)> >(instruction.execute)(address);
+            } else if (std::holds_alternative<std::function<void(uint8_t)> >(instruction.execute)) {
+                std::get<std::function<void(uint8_t)> >(instruction.execute)(readMemory(address));
+            }
             break;
         }
         case AddressingMode::AbsoluteX: {
             uint16_t base_address = readMemory(registers.pc + 1) | (readMemory(registers.pc + 2) << 8);
             uint16_t effective_address = base_address + registers.x;
             page_crossed = (base_address & 0xFF00) != (effective_address & 0xFF00);
-            std::visit([&](auto &&func) {
-                if constexpr (std::is_invocable_v<decltype(func), uint8_t>) {
-                    func(readMemory(effective_address));
-                } else if constexpr (std::is_invocable_v<decltype(func), uint16_t>) {
-                    func(effective_address);
-                }
-            }, instruction.execute);
+            if (std::holds_alternative<std::function<void(uint16_t)> >(instruction.execute)) {
+                std::get<std::function<void(uint16_t)> >(instruction.execute)(effective_address);
+            } else if (std::holds_alternative<std::function<void(uint8_t)> >(instruction.execute)) {
+                std::get<std::function<void(uint8_t)> >(instruction.execute)(readMemory(effective_address));
+            }
             break;
         }
         case AddressingMode::AbsoluteY: {
             uint16_t base_address = readMemory(registers.pc + 1) | (readMemory(registers.pc + 2) << 8);
             uint16_t effective_address = base_address + registers.y;
             page_crossed = (base_address & 0xFF00) != (effective_address & 0xFF00);
-            std::visit([&](auto &&func) {
-                if constexpr (std::is_invocable_v<decltype(func), uint8_t>) {
-                    func(readMemory(effective_address));
-                } else if constexpr (std::is_invocable_v<decltype(func), uint16_t>) {
-                    func(effective_address);
-                }
-            }, instruction.execute);
+            if (std::holds_alternative<std::function<void(uint16_t)> >(instruction.execute)) {
+                std::get<std::function<void(uint16_t)> >(instruction.execute)(effective_address);
+            } else if (std::holds_alternative<std::function<void(uint8_t)> >(instruction.execute)) {
+                std::get<std::function<void(uint8_t)> >(instruction.execute)(readMemory(effective_address));
+            }
             break;
         }
         case AddressingMode::Indirect: {
             uint16_t ptr_address = readMemory(registers.pc + 1) | (readMemory(registers.pc + 2) << 8);
+            // Emulare bug 6502: la citirea adresei indirecte, dacă byte-ul LSB e la 0xXXFF, HSB se citește de la 0xXX00, nu 0xXY00
             uint16_t address = readMemory(ptr_address) | (
                                    readMemory((ptr_address & 0xFF00) | ((ptr_address + 1) & 0xFF)) << 8);
-            std::visit([&](auto &&func) {
-                if constexpr (std::is_invocable_v<decltype(func), uint16_t>) {
-                    func(address);
-                }
-            }, instruction.execute);
+            if (std::holds_alternative<std::function<void(uint16_t)> >(instruction.execute)) {
+                std::get<std::function<void(uint16_t)> >(instruction.execute)(address);
+            }
             break;
         }
         case AddressingMode::IndexedIndirect: {
             uint8_t base_addr = readMemory(registers.pc + 1);
-            uint8_t effective_base = base_addr + registers.x;
+            uint8_t effective_base = base_addr + registers.x; // Wrap-around pe zero-page
             uint16_t address = readMemory(effective_base) | (readMemory((effective_base + 1) & 0xFF) << 8);
-            std::visit([&](auto &&func) {
-                if constexpr (std::is_invocable_v<decltype(func), uint8_t>) {
-                    func(readMemory(address));
-                } else if constexpr (std::is_invocable_v<decltype(func), uint16_t>) {
-                    func(address);
-                }
-            }, instruction.execute);
+            if (std::holds_alternative<std::function<void(uint16_t)> >(instruction.execute)) {
+                std::get<std::function<void(uint16_t)> >(instruction.execute)(address);
+            } else if (std::holds_alternative<std::function<void(uint8_t)> >(instruction.execute)) {
+                std::get<std::function<void(uint8_t)> >(instruction.execute)(readMemory(address));
+            }
             break;
         }
         case AddressingMode::IndirectIndexed: {
@@ -130,56 +115,39 @@ uint8_t Cpu::executeInstruction() {
             uint16_t base_address = readMemory(base_addr) | (readMemory((base_addr + 1) & 0xFF) << 8);
             uint16_t effective_address = base_address + registers.y;
             page_crossed = (base_address & 0xFF00) != (effective_address & 0xFF00);
-            std::visit([&](auto &&func) {
-                if constexpr (std::is_invocable_v<decltype(func), uint8_t>) {
-                    func(readMemory(effective_address));
-                } else if constexpr (std::is_invocable_v<decltype(func), uint16_t>) {
-                    func(effective_address);
-                }
-            }, instruction.execute);
+            if (std::holds_alternative<std::function<void(uint16_t)> >(instruction.execute)) {
+                std::get<std::function<void(uint16_t)> >(instruction.execute)(effective_address);
+            } else if (std::holds_alternative<std::function<void(uint8_t)> >(instruction.execute)) {
+                std::get<std::function<void(uint8_t)> >(instruction.execute)(readMemory(effective_address));
+            }
             break;
         }
         case AddressingMode::Implied: {
-            // NOU: Pentru instrucțiuni fără operanzi
-            // Nu se citește nimic din memorie, operandul este implicit (ex: acumulatorul)
-            std::visit([&](auto &&func) {
-                if constexpr (std::is_invocable_v<decltype(func)>) {
-                    // Așteaptă funcții fără argumente
-                    func();
-                }
-            }, instruction.execute);
+            if (std::holds_alternative<std::function<void()> >(instruction.execute)) {
+                std::get<std::function<void()> >(instruction.execute)();
+            }
             break;
         }
         case AddressingMode::Relative: {
-            // NOU: Pentru instrucțiuni de salt (branch)
-            // Offsetul este semnat, citit de la PC + 1
-            auto offset = static_cast<int8_t>(readMemory(registers.pc + 1));
-
-            // Funcția de salt (ex: BPL, BEQ) va gestiona actualizarea PC-ului
-            // și calculul ciclurilor suplimentare (salt luat, traversare pagină)
-            std::visit([&](auto &&func) {
-                if constexpr (std::is_invocable_v<decltype(func), int8_t>) {
-                    func(offset);
-                }
-            }, instruction.execute);
-            // Ciclurile de bază (2) sunt deja în instruction.cycles.
-            // Funcția de salt trebuie să adauge ciclurile suplimentare la un contor global de cicluri.
-            // Variabila page_crossed_by_addressing nu se aplică aici.
+            uint8_t offset = readMemory(registers.pc + 1);
+            if (std::holds_alternative<std::function<void(uint8_t)> >(instruction.execute)) {
+                std::get<std::function<void(uint8_t)> >(instruction.execute)(offset);
+            }
             break;
         }
     }
 
-    // Actualizează PC-ul dacă nu a fost modificat de instrucțiune (ex. JMP, BRK)
+    // Actualizează PC-ul dacă nu a fost modificat de o instrucțiune de salt (JMP, JSR, branch, etc.)
     if (registers.pc == initial_pc) {
         registers.pc += instruction.bytes;
     }
 
-    uint8_t instruction_cycles = instruction.cycles +
-                            (instruction.page_crossed && page_crossed ? 1 : 0);
+    uint8_t instruction_cycles = instruction.cycles + (instruction.page_crossed && page_crossed ? 1 : 0);
+    total_cycles += instruction_cycles;
 
-    // Returnează ciclurile, adăugând un ciclu dacă a avut loc traversarea paginii
-    return instruction.cycles + (instruction.page_crossed && page_crossed ? 1 : 0);
+    return instruction_cycles;
 }
+
 
 void Cpu::initInstructionTable() {
     instruction_table[0x00] = {std::function<void()>([this]() { BRK(); }), AddressingMode::Implied, 2, 7};
@@ -644,13 +612,19 @@ void Cpu::setInterruptDisableFlag(bool value) {
         registers.p &= ~0x04; // Clear Interrupt Disable Flag
 }
 
-inline void Cpu::writeMemory(uint16_t address, uint8_t value) {
+void Cpu::writeMemory(uint16_t address, uint8_t value) {
+    std::cout << "🔥 writeMemory(0x" << std::hex << address
+            << ", 0x" << (int) value << ") called!" << std::endl;
     memory.bus[address] = value;
+
+    // Verifică că s-a scris:
+    uint8_t readBack = memory.bus[address];
+    std::cout << "🔥 Wrote 0x" << (int) value << ", read back 0x" << (int) readBack << std::endl;
 }
 
 
-inline uint8_t Cpu::readMemory(uint16_t uint16) {
-    return memory.bus[uint16];
+uint8_t Cpu::readMemory(uint16_t address) {
+    return memory.bus[address];
 }
 
 // All of the official instructions are defined in the functions below:
@@ -719,7 +693,6 @@ void Cpu::BCC(uint8_t value) {
         uint16_t old_pc = registers.pc + 2;
         registers.pc += offset + 2; // Adjust Program Counter
         total_cycles += 1 + ((old_pc & 0xFF00) != (registers.pc & 0xFF00) ? 1 : 0);
-
     }
 }
 
@@ -741,7 +714,6 @@ void Cpu::BEQ(uint8_t value) {
         uint16_t old_pc = registers.pc + 2;
         registers.pc += offset + 2; // Adjust Program Counter
         total_cycles += 1 + ((old_pc & 0xFF00) != (registers.pc & 0xFF00) ? 1 : 0);
-
     }
 }
 
@@ -759,7 +731,6 @@ void Cpu::BMI(uint8_t value) {
         uint16_t old_pc = registers.pc + 2;
         registers.pc += offset + 2; // Adjust Program Counter
         total_cycles += 1 + ((old_pc & 0xFF00) != (registers.pc & 0xFF00) ? 1 : 0);
-
     }
 }
 
@@ -770,7 +741,6 @@ void Cpu::BNE(uint8_t value) {
         uint16_t old_pc = registers.pc + 2;
         registers.pc += offset + 2; // Adjust Program Counter
         total_cycles += 1 + ((old_pc & 0xFF00) != (registers.pc & 0xFF00) ? 1 : 0);
-
     }
 }
 
@@ -781,7 +751,6 @@ void Cpu::BPL(uint8_t value) {
         uint16_t old_pc = registers.pc + 2;
         registers.pc += offset + 2; // Adjust Program Counter
         total_cycles += 1 + ((old_pc & 0xFF00) != (registers.pc & 0xFF00) ? 1 : 0);
-
     }
 }
 
@@ -821,7 +790,6 @@ void Cpu::BVS(uint8_t value) {
         uint16_t old_pc = registers.pc + 2;
         registers.pc += offset + 2; // Adjust Program Counter
         total_cycles += 1 + ((old_pc & 0xFF00) != (registers.pc & 0xFF00) ? 1 : 0);
-
     }
 }
 
@@ -922,6 +890,7 @@ void Cpu::EOR(uint8_t value) {
 
 // Increment Memory - increments the value at the specified address
 void Cpu::INC(uint16_t address) {
+    std::cout << "🔥 INC(0x" << std::hex << address << ") called!" << std::endl;
     uint8_t value = readMemory(address);
     value++;
     setZeroFlag(value == 0);
@@ -1054,6 +1023,8 @@ void Cpu::PHP() {
 
 void Cpu::PLA() {
     registers.a = memory.pop8(registers.sp);
+    setZeroFlag(registers.a == 0);
+    setNegativeFlag((registers.a & 0x80) != 0);
 }
 
 // TODO: Again, not too sure (~Mario)
@@ -1226,11 +1197,13 @@ void Cpu::TXS() {
 
     // === Set Flags ===
 
-    // Zero Flag (Z)
-    setZeroFlag(registers.sp == 0);
-
-    // Negative Flag (N)
-    setNegativeFlag((registers.sp & 0x80) != 0);
+    // Aparent nu are flags?
+    //
+    // // Zero Flag (Z)
+    // setZeroFlag(registers.sp == 0);
+    //
+    // // Negative Flag (N)
+    // setNegativeFlag((registers.sp & 0x80) != 0);
 }
 
 void Cpu::TYA() {

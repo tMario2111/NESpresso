@@ -61,6 +61,10 @@ public:
 
     std::array<Instruction, 256> instruction_table;
 
+    uint8_t readMemory(uint16_t uint16);
+
+    void writeMemory(uint16_t address, uint8_t value);
+
 private:
     Memory &memory = Memory::instance();
 
@@ -83,9 +87,7 @@ private:
 
     inline void setInterruptDisableFlag(bool value);
 
-    inline uint8_t readMemory(uint16_t uint16);
 
-    inline void writeMemory(uint16_t address, uint8_t value);
 
     void ADC(uint8_t value);
 
