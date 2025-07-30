@@ -1,5 +1,5 @@
 // NESpresso CPU Header
-// Date: 2025-07-29 23:45:02 UTC
+// Date: 2025-07-30 00:22:00 UTC
 // User: nicusor43
 
 #pragma once
@@ -12,53 +12,43 @@
 
 #include "Memory.hpp"
 
-// --- MACRO-UL MAGIC ---
-// Acest macro primește numele funcției (ex: LDA) și restul parametrilor.
-// El generează automat mnemonicul ca string ("LDA") și lambda-ul corespunzător.
-#define CREATE_INSTR(func, mode, bytes, cycles, ...) \
-{#func, std::function<void(uint8_t)>([this](uint8_t v) { this->func(v); }), mode, bytes, cycles, ##__VA_ARGS__}
+// --- MACRO-URI ---
+#define CREATE_INSTR(func, mode, bytes, cycles, page_cross_penalty) \
+    {#func, std::function<void(uint8_t)>([this](uint8_t v) { this->func(v); }), mode, bytes, cycles, page_cross_penalty}
 
-#define CREATE_INSTR_ADDR(func, mode, bytes, cycles, ...) \
-{#func, std::function<void(uint16_t)>([this](uint16_t a) { this->func(a); }), mode, bytes, cycles, ##__VA_ARGS__}
+#define CREATE_INSTR_ADDR(func, mode, bytes, cycles, page_cross_penalty) \
+    {#func, std::function<void(uint16_t)>([this](uint16_t a) { this->func(a); }), mode, bytes, cycles, page_cross_penalty}
 
-#define CREATE_INSTR_IMPLIED(func, mode, bytes, cycles, ...) \
-{#func, std::function<void()>([this]() { this->func(); }), mode, bytes, cycles, ##__VA_ARGS__}
-
+#define CREATE_INSTR_IMPLIED(func, mode, bytes, cycles) \
+    {#func, std::function<void()>([this]() { this->func(); }), mode, bytes, cycles, false}
 
 
 class Cpu {
 public:
-    // ... (constructorii și operatorii rămân la fel) ...
     static Cpu &instance();
 
-    void executeInstruction(); // Am eliminat valoarea de retur, nu mai este necesară
+    void executeInstruction();
+
     uint64_t total_cycles = 0;
 
-    // ... (structurile Registers, Instruction și enum-ul AddressingMode rămân la fel) ...
     struct Registers {
         uint8_t a{};
         uint8_t x{}, y{};
-        uint16_t pc = Memory::ROM_BOTTOM;
+        // --- AICI ESTE CORECTIA ---
+        uint16_t pc = Memory::ROM_START; // Am schimbat ROM_BOTTOM în ROM_START
         uint8_t sp = 0xFD;
         uint8_t p{};
     } registers{};
 
     enum class AddressingMode {
-        Immediate,
-        ZeroPage,
-        ZeroPageX,
-        ZeroPageY,
-        Absolute,
-        AbsoluteX,
-        AbsoluteY,
-        Indirect,
-        IndexedIndirect,
-        IndirectIndexed,
-        Implied,
-        Relative
+        Immediate, ZeroPage, ZeroPageX, ZeroPageY,
+        Absolute, AbsoluteX, AbsoluteY,
+        Indirect, IndexedIndirect, IndirectIndexed,
+        Implied, Relative
     };
 
     struct Instruction {
+        std::string mnemonic;
         std::variant<
             std::function<void(uint8_t)>,
             std::function<void(uint16_t)>,
@@ -67,9 +57,8 @@ public:
         AddressingMode mode;
         uint8_t bytes;
         uint8_t cycles;
-        bool page_crossed;
+        bool page_crossed_penalty;
     };
-
 
     std::array<Instruction, 256> instruction_table;
 
@@ -78,7 +67,6 @@ public:
     void writeMemory(uint16_t address, uint8_t value);
 
 private:
-    // ... (restul fișierului rămâne identic cu versiunea anterioară) ...
     Memory &memory = Memory::instance();
 
     Cpu();

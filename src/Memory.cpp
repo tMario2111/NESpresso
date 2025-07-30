@@ -1,5 +1,5 @@
 // NESpresso Memory Implementation
-// Date: 2025-07-29 23:58:00 UTC
+// Date: 2025-07-30 00:23:47 UTC
 // User: nicusor43
 
 #include "Memory.hpp"
@@ -34,7 +34,7 @@ uint16_t Memory::pop16(uint8_t &sp) {
 bool Memory::loadROM(const std::string &filename) {
     std::ifstream file(filename, std::ios::binary);
     if (!file) {
-        spdlog::error("Failed to open ROM file: {}", filename);
+        spdlog::critical("Failed to open ROM file: {}", filename);
         return false;
     }
 
@@ -43,7 +43,7 @@ bool Memory::loadROM(const std::string &filename) {
 
     // Validează "magic number"
     if (std::strncmp(header.magic, "NES\x1A", 4) != 0) {
-        spdlog::error("Invalid .nes file format. Magic number is incorrect.");
+        spdlog::critical("Invalid .nes file format. Magic number is incorrect.");
         return false;
     }
 
@@ -51,7 +51,6 @@ bool Memory::loadROM(const std::string &filename) {
 
     // Verifică dacă există un "trainer" (512 bytes de date extra)
     if (header.flags6 & 0x04) {
-        // Omitem trainer-ul, sărind peste 512 bytes
         file.seekg(512, std::ios_base::cur);
         spdlog::info("Trainer found, skipping 512 bytes.");
     }

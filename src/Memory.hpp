@@ -1,5 +1,5 @@
 // NESpresso Memory Header
-// Date: 2025-07-29 23:58:00 UTC
+// Date: 2025-07-30 00:23:47 UTC
 // User: nicusor43
 
 #pragma once
@@ -9,7 +9,6 @@
 #include <array>
 #include <cstdint>
 #include <fstream>
-#include <sstream>
 #include <string>
 #include <vector>
 
@@ -34,7 +33,7 @@ public:
     static Memory &instance();
 
     // Bus-ul CPU
-    std::array<uint8_t, 65536> bus;
+    std::array<uint8_t, 65536> bus{};
 
     // Memoria pentru PPU (Pattern Tables)
     std::vector<uint8_t> chr_rom;
@@ -44,10 +43,8 @@ public:
     bool vertical_mirroring = false;
 
     // Constante memorie
-    static constexpr uint32_t STACK_TOP = 0x1FF;
-    static constexpr uint32_t STACK_BOTTOM = 0x100;
-    static constexpr uint32_t ROM_BOTTOM = 0x8000;
-    static constexpr uint32_t ROM_TOP = 0xFFFF;
+    static constexpr uint16_t STACK_BOTTOM = 0x0100;
+    static constexpr uint16_t ROM_START = 0x8000;
 
     // Funcții de manipulare a stivei
     void push8(uint8_t &sp, uint8_t val);
