@@ -1,3 +1,7 @@
+// NESpresso CPU Header
+// Date: 2025-07-29 23:45:02 UTC
+// User: nicusor43
+
 #pragma once
 
 #include <array>
@@ -8,27 +12,35 @@
 
 #include "Memory.hpp"
 
+// --- MACRO-UL MAGIC ---
+// Acest macro primește numele funcției (ex: LDA) și restul parametrilor.
+// El generează automat mnemonicul ca string ("LDA") și lambda-ul corespunzător.
+#define CREATE_INSTR(func, mode, bytes, cycles, ...) \
+{#func, std::function<void(uint8_t)>([this](uint8_t v) { this->func(v); }), mode, bytes, cycles, ##__VA_ARGS__}
+
+#define CREATE_INSTR_ADDR(func, mode, bytes, cycles, ...) \
+{#func, std::function<void(uint16_t)>([this](uint16_t a) { this->func(a); }), mode, bytes, cycles, ##__VA_ARGS__}
+
+#define CREATE_INSTR_IMPLIED(func, mode, bytes, cycles, ...) \
+{#func, std::function<void()>([this]() { this->func(); }), mode, bytes, cycles, ##__VA_ARGS__}
+
+
+
 class Cpu {
 public:
-    Cpu(const Cpu &) = delete;
-
-    Cpu &operator=(const Cpu &) = delete;
-
+    // ... (constructorii și operatorii rămân la fel) ...
     static Cpu &instance();
 
-    uint8_t executeInstruction();
-
+    void executeInstruction(); // Am eliminat valoarea de retur, nu mai este necesară
     uint64_t total_cycles = 0;
 
+    // ... (structurile Registers, Instruction și enum-ul AddressingMode rămân la fel) ...
     struct Registers {
-        uint8_t a;
-        uint8_t x, y;
+        uint8_t a{};
+        uint8_t x{}, y{};
         uint16_t pc = Memory::ROM_BOTTOM;
-
-        // sp is initialized to 0xFD on console startup
         uint8_t sp = 0xFD;
-
-        uint8_t p;
+        uint8_t p{};
     } registers{};
 
     enum class AddressingMode {
@@ -47,7 +59,6 @@ public:
     };
 
     struct Instruction {
-        // std::string mnemonic;
         std::variant<
             std::function<void(uint8_t)>,
             std::function<void(uint16_t)>,
@@ -59,15 +70,16 @@ public:
         bool page_crossed;
     };
 
+
     std::array<Instruction, 256> instruction_table;
 
-    uint8_t readMemory(uint16_t uint16);
+    uint8_t readMemory(uint16_t address);
 
     void writeMemory(uint16_t address, uint8_t value);
 
 private:
+    // ... (restul fișierului rămâne identic cu versiunea anterioară) ...
     Memory &memory = Memory::instance();
-
 
     Cpu();
 
@@ -75,6 +87,7 @@ private:
 
     void initInstructionTable();
 
+    // Flag Setters
     inline void setNegativeFlag(bool value);
 
     inline void setZeroFlag(bool value);
@@ -87,8 +100,7 @@ private:
 
     inline void setInterruptDisableFlag(bool value);
 
-
-
+    // Official Instructions
     void ADC(uint8_t value);
 
     void AND(uint8_t value);
@@ -179,7 +191,6 @@ private:
 
     void ROR_Memory(uint16_t address);
 
-
     void RTI();
 
     void RTS();
@@ -209,4 +220,23 @@ private:
     void TXS();
 
     void TYA();
+
+    // Unofficial Instructions
+    void NOP_unofficial(uint16_t address);
+
+    void LAX(uint8_t value);
+
+    void SAX(uint16_t address);
+
+    void DCP(uint16_t address);
+
+    void ISC(uint16_t address);
+
+    void SLO(uint16_t address);
+
+    void RLA(uint16_t address);
+
+    void SRE(uint16_t address);
+
+    void RRA(uint16_t address);
 };
