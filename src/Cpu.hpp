@@ -1,5 +1,5 @@
 // NESpresso CPU Header
-// Date: 2025-07-30 00:22:00 UTC
+// Date: 2025-07-30 00:42:53 UTC
 // User: nicusor43
 
 #pragma once
@@ -9,23 +9,22 @@
 #include <functional>
 #include <string>
 #include <variant>
-
 #include "Memory.hpp"
 
-// --- MACRO-URI ---
 #define CREATE_INSTR(func, mode, bytes, cycles, page_cross_penalty) \
-    {#func, std::function<void(uint8_t)>([this](uint8_t v) { this->func(v); }), mode, bytes, cycles, page_cross_penalty}
-
+    Instruction{#func, std::function<void(uint8_t)>([this](uint8_t v) { this->func(v); }), mode, bytes, cycles, page_cross_penalty}
 #define CREATE_INSTR_ADDR(func, mode, bytes, cycles, page_cross_penalty) \
-    {#func, std::function<void(uint16_t)>([this](uint16_t a) { this->func(a); }), mode, bytes, cycles, page_cross_penalty}
-
+    Instruction{#func, std::function<void(uint16_t)>([this](uint16_t a) { this->func(a); }), mode, bytes, cycles, page_cross_penalty}
 #define CREATE_INSTR_IMPLIED(func, mode, bytes, cycles) \
-    {#func, std::function<void()>([this]() { this->func(); }), mode, bytes, cycles, false}
-
+    Instruction{#func, std::function<void()>([this]() { this->func(); }), mode, bytes, cycles, false}
 
 class Cpu {
 public:
     static Cpu &instance();
+
+    Cpu(const Cpu &) = delete;
+
+    Cpu &operator=(const Cpu &) = delete;
 
     void executeInstruction();
 
@@ -34,11 +33,10 @@ public:
     struct Registers {
         uint8_t a{};
         uint8_t x{}, y{};
-        // --- AICI ESTE CORECTIA ---
-        uint16_t pc = Memory::ROM_START; // Am schimbat ROM_BOTTOM în ROM_START
+        uint16_t pc = 0xC000;
         uint8_t sp = 0xFD;
-        uint8_t p{};
-    } registers{};
+        uint8_t p = 0x24;
+    } registers;
 
     enum class AddressingMode {
         Immediate, ZeroPage, ZeroPageX, ZeroPageY,
@@ -52,8 +50,8 @@ public:
         std::variant<
             std::function<void(uint8_t)>,
             std::function<void(uint16_t)>,
-            std::function<void()>
-        > execute;
+            std::function<void()> >
+        execute;
         AddressingMode mode;
         uint8_t bytes;
         uint8_t cycles;
@@ -76,17 +74,17 @@ private:
     void initInstructionTable();
 
     // Flag Setters
-    inline void setNegativeFlag(bool value);
+    void setNegativeFlag(bool value);
 
-    inline void setZeroFlag(bool value);
+    void setZeroFlag(bool value);
 
-    inline void setCarryFlag(bool value);
+    void setCarryFlag(bool value);
 
-    inline void setOverflowFlag(bool value);
+    void setOverflowFlag(bool value);
 
-    inline void setDecimalFlag(bool value);
+    void setDecimalFlag(bool value);
 
-    inline void setInterruptDisableFlag(bool value);
+    void setInterruptDisableFlag(bool value);
 
     // Official Instructions
     void ADC(uint8_t value);

@@ -1,62 +1,55 @@
 // NESpresso CPU Implementation
-// Date: 2025-07-30 00:18:15 UTC
+// Date: 2025-07-30 00:46:54 UTC
 // User: nicusor43
 
 #include "Cpu.hpp"
-#include "Memory.hpp"
 #include <iostream>
 
-Cpu::Cpu() { this->initInstructionTable(); }
+Cpu::Cpu() {
+    initInstructionTable();
+}
 
 Cpu &Cpu::instance() {
     static Cpu cpu;
     return cpu;
 }
 
-// --- Bucla Principală de Execuție (LOGICĂ NOUĂ) ---
 void Cpu::executeInstruction() {
-    uint8_t opcode = readMemory(registers.pc);
+    uint16_t pc_before_exec = registers.pc;
+    uint8_t opcode = readMemory(pc_before_exec);
     Instruction &instruction = instruction_table[opcode];
     bool page_crossed = false;
 
-    // Calculează adresa/valoarea
     uint16_t address = 0;
     uint8_t value = 0;
 
     switch (instruction.mode) {
-        case AddressingMode::Implied:
-            break; // Nu se face nimic
-        case AddressingMode::Immediate:
-            value = readMemory(registers.pc + 1);
+        case AddressingMode::Implied: break;
+        case AddressingMode::Immediate: value = readMemory(pc_before_exec + 1);
             break;
-        case AddressingMode::ZeroPage:
-            address = readMemory(registers.pc + 1);
+        case AddressingMode::ZeroPage: address = readMemory(pc_before_exec + 1);
             break;
-        case AddressingMode::ZeroPageX:
-            address = (readMemory(registers.pc + 1) + registers.x) & 0xFF;
+        case AddressingMode::ZeroPageX: address = (readMemory(pc_before_exec + 1) + registers.x) & 0xFF;
             break;
-        case AddressingMode::ZeroPageY:
-            address = (readMemory(registers.pc + 1) + registers.y) & 0xFF;
+        case AddressingMode::ZeroPageY: address = (readMemory(pc_before_exec + 1) + registers.y) & 0xFF;
             break;
-        case AddressingMode::Absolute:
-            address = readMemory(registers.pc + 1) | (readMemory(registers.pc + 2) << 8);
+        case AddressingMode::Absolute: address = readMemory(pc_before_exec + 1) | (readMemory(pc_before_exec + 2) << 8);
             break;
         case AddressingMode::AbsoluteX: {
-            uint16_t base_addr = readMemory(registers.pc + 1) | (readMemory(registers.pc + 2) << 8);
+            uint16_t base_addr = readMemory(pc_before_exec + 1) | (readMemory(pc_before_exec + 2) << 8);
             address = base_addr + registers.x;
             page_crossed = (base_addr & 0xFF00) != (address & 0xFF00);
             break;
         }
         case AddressingMode::AbsoluteY: {
-            uint16_t base_addr = readMemory(registers.pc + 1) | (readMemory(registers.pc + 2) << 8);
+            uint16_t base_addr = readMemory(pc_before_exec + 1) | (readMemory(pc_before_exec + 2) << 8);
             address = base_addr + registers.y;
             page_crossed = (base_addr & 0xFF00) != (address & 0xFF00);
             break;
         }
         case AddressingMode::Indirect: {
-            uint16_t ptr = readMemory(registers.pc + 1) | (readMemory(registers.pc + 2) << 8);
+            uint16_t ptr = readMemory(pc_before_exec + 1) | (readMemory(pc_before_exec + 2) << 8);
             if ((ptr & 0x00FF) == 0x00FF) {
-                // Emulează bug-ul hardware
                 address = (readMemory(ptr & 0xFF00) << 8) | readMemory(ptr);
             } else {
                 address = readMemory(ptr) | (readMemory(ptr + 1) << 8);
@@ -64,25 +57,21 @@ void Cpu::executeInstruction() {
             break;
         }
         case AddressingMode::IndexedIndirect: {
-            uint8_t zp_addr = (readMemory(registers.pc + 1) + registers.x) & 0xFF;
+            uint8_t zp_addr = (readMemory(pc_before_exec + 1) + registers.x) & 0xFF;
             address = readMemory(zp_addr) | (readMemory((zp_addr + 1) & 0xFF) << 8);
             break;
         }
         case AddressingMode::IndirectIndexed: {
-            uint8_t zp_addr = readMemory(registers.pc + 1);
+            uint8_t zp_addr = readMemory(pc_before_exec + 1);
             uint16_t base_addr = readMemory(zp_addr) | (readMemory((zp_addr + 1) & 0xFF) << 8);
             address = base_addr + registers.y;
             page_crossed = (base_addr & 0xFF00) != (address & 0xFF00);
             break;
         }
-        case AddressingMode::Relative:
-            value = readMemory(registers.pc + 1); // Offset-ul este tratat ca 'value'
+        case AddressingMode::Relative: value = readMemory(pc_before_exec + 1);
             break;
     }
 
-    uint16_t pc_before_exec = registers.pc;
-
-    // Execută funcția corespunzătoare
     if (auto fn = std::get_if<std::function<void(uint16_t)> >(&instruction.execute)) {
         (*fn)(address);
     } else if (auto fn = std::get_if<std::function<void(uint8_t)> >(&instruction.execute)) {
@@ -95,19 +84,16 @@ void Cpu::executeInstruction() {
         (*fn)();
     }
 
-    // Adaugă ciclurile de bază + penalizarea pentru page cross
     total_cycles += instruction.cycles;
     if (page_crossed && instruction.page_crossed_penalty) {
         total_cycles++;
     }
 
-    // Avansează PC-ul doar dacă instrucțiunea nu a fost un branch, jump sau return
     if (registers.pc == pc_before_exec) {
         registers.pc += instruction.bytes;
     }
 }
 
-// --- Tabelul de Instrucțiuni (100% COMPLET) ---
 void Cpu::initInstructionTable() {
     // Official Opcodes
     instruction_table[0x00] = CREATE_INSTR_IMPLIED(BRK, AddressingMode::Implied, 1, 7);
@@ -357,8 +343,6 @@ void Cpu::initInstructionTable() {
     instruction_table[0x7F] = CREATE_INSTR_ADDR(RRA, AddressingMode::AbsoluteX, 3, 7, false);
 }
 
-// --- Implementări Instrucțiuni (LOGICĂ NOUĂ PENTRU BRANCH ȘI JUMPS) ---
-// Flag Setters
 void Cpu::setNegativeFlag(bool value) { registers.p = value ? (registers.p | 0x80) : (registers.p & ~0x80); }
 void Cpu::setZeroFlag(bool value) { registers.p = value ? (registers.p | 0x02) : (registers.p & ~0x02); }
 void Cpu::setCarryFlag(bool value) { registers.p = value ? (registers.p | 0x01) : (registers.p & ~0x01); }
@@ -366,11 +350,9 @@ void Cpu::setOverflowFlag(bool value) { registers.p = value ? (registers.p | 0x4
 void Cpu::setDecimalFlag(bool value) { registers.p = value ? (registers.p | 0x08) : (registers.p & ~0x08); }
 void Cpu::setInterruptDisableFlag(bool value) { registers.p = value ? (registers.p | 0x04) : (registers.p & ~0x04); }
 
-// Memory Access
 void Cpu::writeMemory(uint16_t address, uint8_t value) { memory.bus[address] = value; }
 uint8_t Cpu::readMemory(uint16_t address) { return memory.bus[address]; }
 
-// Official Instructions
 void Cpu::ADC(uint8_t value) {
     uint16_t sum = registers.a + value + (registers.p & 0x01);
     setCarryFlag(sum > 0xFF);
@@ -402,17 +384,21 @@ void Cpu::ASL_Memory(uint16_t address) {
     setNegativeFlag(value & 0x80);
 }
 
-void branch_if(Cpu &cpu, bool condition, uint8_t offset) {
-    uint16_t pc_after_instr = cpu.registers.pc + 2;
+void branch_if(Cpu &cpu, bool condition, uint8_t offset_val) {
     if (condition) {
         cpu.total_cycles++;
-        uint16_t old_pc = pc_after_instr;
-        cpu.registers.pc = pc_after_instr + static_cast<int8_t>(offset);
-        if ((old_pc & 0xFF00) != (cpu.registers.pc & 0xFF00)) {
+        int8_t offset = static_cast<int8_t>(offset_val);
+        uint16_t pc_after_branch_instr = cpu.registers.pc + 2;
+        uint16_t target_address = pc_after_branch_instr + offset;
+
+        if ((pc_after_branch_instr & 0xFF00) != (target_address & 0xFF00)) {
             cpu.total_cycles++;
         }
+        cpu.registers.pc = target_address;
     } else {
-        cpu.registers.pc = pc_after_instr;
+        // Dacă branch-ul nu este luat, PC-ul va fi incrementat cu 2 (bytes)
+        // de bucla principală `executeInstruction`. Nu facem nimic aici.
+        cpu.registers.pc += 2;
     }
 }
 
@@ -559,6 +545,7 @@ void Cpu::ORA(uint8_t value) {
     setNegativeFlag(registers.a & 0x80);
 }
 
+
 void Cpu::PHA() { memory.push8(registers.sp, registers.a); }
 void Cpu::PHP() { memory.push8(registers.sp, registers.p | 0x30); }
 
@@ -614,11 +601,10 @@ void Cpu::RTI() {
 void Cpu::RTS() { registers.pc = memory.pop16(registers.sp) + 1; }
 
 void Cpu::SBC(uint8_t value) {
-    value = ~value; // Invert the value for subtraction
-    uint16_t diff = registers.a + value + (registers.p & 0x01);
-    setCarryFlag(diff > 0xFF);
+    uint16_t diff = registers.a - value - (1 - (registers.p & 0x01));
+    setCarryFlag(!(diff & 0x100));
     setZeroFlag((diff & 0xFF) == 0);
-    setOverflowFlag((registers.a ^ diff) & (value ^ diff) & 0x80);
+    setOverflowFlag((registers.a ^ diff) & (~value ^ diff) & 0x80);
     setNegativeFlag(diff & 0x80);
     registers.a = diff & 0xFF;
 }
@@ -663,10 +649,8 @@ void Cpu::TYA() {
     setNegativeFlag(registers.a & 0x80);
 }
 
-// --- Unofficial Instructions ---
-void Cpu::NOP_unofficial(uint16_t address) {
-    (void) address; /* Do nothing */
-}
+// Unofficial Instructions
+void Cpu::NOP_unofficial(uint16_t address) { (void) address; }
 
 void Cpu::LAX(uint8_t value) {
     LDA(value);
