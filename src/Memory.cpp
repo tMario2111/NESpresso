@@ -57,15 +57,12 @@ bool Memory::loadROM(const std::string &filename) {
     std::vector<uint8_t> prg_rom_data(prg_rom_size);
     file.read(reinterpret_cast<char *>(prg_rom_data.data()), prg_rom_size);
 
-    // --- CORECȚIA ESTE AICI ---
-    // Pentru nestest.nes, încarcă ROM-ul direct la $C000 în loc de $8000
+    // 16KB -> $C000 + mirror at $8000, 32KB -> $8000-$FFFF
     if (header.prg_rom_chunks == 1) {
-        // 16KB ROM - încarcă la $C000 și oglindește la $8000
         std::memcpy(bus.data() + 0xC000, prg_rom_data.data(), 0x4000);
-        std::memcpy(bus.data() + 0x8000, prg_rom_data.data(), 0x4000); // Oglindire
+        std::memcpy(bus.data() + 0x8000, prg_rom_data.data(), 0x4000);
         spdlog::info("Loaded 16KB PRG ROM at $C000 and mirrored at $8000.");
     } else {
-        // 32KB ROM - încarcă la $8000 (ocupă și $C000)
         std::memcpy(bus.data() + 0x8000, prg_rom_data.data(), 0x8000);
         spdlog::info("Loaded 32KB PRG ROM at $8000-$FFFF.");
     }
@@ -79,5 +76,11 @@ bool Memory::loadROM(const std::string &filename) {
     }
 
     file.close();
+
+    // Pentru a potrivi “= FF” în log la STA $4015/$4004/$4005/$4006/$4007
+    for (uint16_t a = 0x4000; a <= 0x4017; ++a) {
+        bus[a] = 0xFF;
+    }
+
     return true;
 }
