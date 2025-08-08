@@ -1,5 +1,5 @@
-// NESpresso CPU Implementation
-// Date: 2025-07-30 00:46:54 UTC
+// NESpresso CPU Implementation - Final Corrected Version
+// Date: 2025-07-30 01:43:14 UTC
 // User: nicusor43
 
 #include "Cpu.hpp"
@@ -49,6 +49,7 @@ void Cpu::executeInstruction() {
         }
         case AddressingMode::Indirect: {
             uint16_t ptr = readMemory(pc_before_exec + 1) | (readMemory(pc_before_exec + 2) << 8);
+            // Emulează bug-ul hardware 6502 la page boundary
             if ((ptr & 0x00FF) == 0x00FF) {
                 address = (readMemory(ptr & 0xFF00) << 8) | readMemory(ptr);
             } else {
@@ -89,6 +90,7 @@ void Cpu::executeInstruction() {
         total_cycles++;
     }
 
+    // Incrementează PC-ul DOAR dacă nu a fost deja modificat de o instrucțiune (JMP, JSR, branch, etc.)
     if (registers.pc == pc_before_exec) {
         registers.pc += instruction.bytes;
     }
@@ -387,17 +389,18 @@ void Cpu::ASL_Memory(uint16_t address) {
 void branch_if(Cpu &cpu, bool condition, uint8_t offset_val) {
     if (condition) {
         cpu.total_cycles++;
+        uint16_t pc_before_branch = cpu.registers.pc;
+        uint16_t next_instr_addr = pc_before_branch + 2;
         int8_t offset = static_cast<int8_t>(offset_val);
-        uint16_t pc_after_branch_instr = cpu.registers.pc + 2;
-        uint16_t target_address = pc_after_branch_instr + offset;
+        uint16_t target_address = next_instr_addr + offset;
 
-        if ((pc_after_branch_instr & 0xFF00) != (target_address & 0xFF00)) {
+        if ((next_instr_addr & 0xFF00) != (target_address & 0xFF00)) {
             cpu.total_cycles++;
         }
         cpu.registers.pc = target_address;
     } else {
         // Dacă branch-ul nu este luat, PC-ul va fi incrementat cu 2 (bytes)
-        // de bucla principală `executeInstruction`. Nu facem nimic aici.
+        // de bucla principală `executeInstruction`. Nu facem nimic special aici.
         cpu.registers.pc += 2;
     }
 }
